@@ -39,6 +39,7 @@ def test_orchestrator_plans_delegates_reads_notes_and_saves_report(tmp_path, mon
         call("write_todos", todos=[{"content": "research", "status": "in_progress"}]),
         call("task", description="Revenue for MSFT and GOOGL", subagent_type="researcher"),
         call("write_file", file_path="/x.md", content="nope"),          # blocked
+        call("save_final_report", markdown=REPORT),                     # refused: note not read yet
         call("read_file", file_path=PATH),
         call("save_final_report", markdown="# too short, no coverage"),  # rejected
         call("save_final_report", markdown=REPORT),
@@ -59,6 +60,8 @@ def test_orchestrator_plans_delegates_reads_notes_and_saves_report(tmp_path, mon
     by_name = {m.name: m.content for m in out["messages"] if getattr(m, "name", None)}
     assert "write_todos" in by_name and by_name["task"].startswith(f"Notes file: {PATH}")
     assert "Saved final report" in by_name["save_final_report"]
+    saves = [m for m in out["messages"] if getattr(m, "name", None) == "save_final_report"]
+    assert "read these research notes" in saves[0].content  # synthesis must read the artifact first
 
 
 # ---- dynamic research planning ----------------------------------------------

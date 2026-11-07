@@ -31,6 +31,7 @@ from fin_agent.agents.researcher import get_backend, get_researcher_subagent
 from fin_agent.research_guard import NOTES_DIR, NOTE_MAX_WORDS, REPORT_MAX_WORDS, count_words
 
 logger = logging.getLogger("fin_agent.orchestrator")
+synth_log = logging.getLogger("fin_agent.synthesis")  # artifact reads during synthesis
 
 DEFAULT_MODEL = "gpt-6.1-terra"
 REPORT_PATH = Path(__file__).resolve().parents[2] / "outputs" / "final_report.md"
@@ -82,9 +83,12 @@ You never search the web yourself.
    Only include the topics this task actually covers.
 5. COLLECT. Each researcher returns a short summary and a `Notes file:` path. Keep only
    those (summary + path). If a task returns `NOT SAVED`, treat its findings as unverified.
-6. READ. At synthesis time call read_file on each notes file you need (paths start with
-   {NOTES_DIR}/). Do not re-research what the notes already cover.
-7. SYNTHESIZE a comparison from the notes only. Every figure or claim keeps its source URL
+6. READ. At synthesis time call read_file on EVERY notes file returned by the researchers
+   (paths start with {NOTES_DIR}/). The summaries are only pointers; the notes are the
+   evidence. `save_final_report` is refused until every produced note has been read. Do not
+   re-research what the notes already cover.
+7. SYNTHESIZE a comparison from the note contents you just read (not from memory of the
+   summaries). Every figure or claim keeps its source URL
    (and date when the note has one). Never invent a number. Flag anything unverified, stale,
    conflicting or not found. Keep facts and interpretation apart: reported figures are stated
    plainly with their source; inferences, forecasts and opinions are worded as such and
@@ -273,10 +277,17 @@ class OrchestratorGuardMiddleware(AgentMiddleware):
     (`task`) following an accepted research plan, within the 3-task ceiling.
 
     Notes belong to the researcher; the report goes through `save_final_report`.
+
+    It also makes the filesystem hand-off observable (logger `fin_agent.synthesis`): which notes
+    the researchers produced, which the orchestrator actually read with `read_file`, and it
+    refuses `save_final_report` until every produced note has been read, so the report cannot
+    be written from the short summaries alone.
     """
 
     def __init__(self, planner: ResearchPlanner):
         self.planner = planner
+        self.produced: list[str] = []  # note paths announced by researcher results
+        self.read: dict[str, int] = {}  # note path -> words the orchestrator read
 
     def _check(self, request) -> ToolMessage | None:
         call = request.tool_call
@@ -288,15 +299,65 @@ class OrchestratorGuardMiddleware(AgentMiddleware):
             )
         elif call["name"] == "task":
             error = self.planner.allow_delegation()
+        elif call["name"] == "save_final_report":
+            unread = [p for p in self.produced if p not in self.read]
+            if unread:
+                error = (
+                    f"Error: read these research notes with read_file before saving the report: "
+                    f"{unread}. The report must be synthesized from the notes, not the summaries."
+                )
+                synth_log.warning("SYNTHESIS | save_final_report REFUSED, notes not read yet: %s", unread)
         if error is None:
             return None
         return ToolMessage(content=error, name=call["name"], tool_call_id=call["id"], status="error")
 
+    def _observe(self, request, result) -> None:
+        """Log what crossed into the orchestrator's context (never changes the result)."""
+        call = request.tool_call
+        msgs = result.update.get("messages", []) if hasattr(result, "update") else [result]
+        text = "\n".join(str(getattr(m, "content", "")) for m in msgs)
+        if call["name"] == "task":
+            match = re.match(rf"\s*Notes file:\s*({re.escape(NOTES_DIR)}/\S+\.md)", text)
+            path = match.group(1) if match else None
+            if path and path not in self.produced:
+                self.produced.append(path)
+            synth_log.info(
+                "SYNTHESIS | researcher result entered orchestrator context: %d words (summary only) "
+                "| artifact=%s | detailed note stays on disk",
+                count_words(text), path or "NONE",
+            )
+        elif call["name"] == "read_file":
+            path = str(call.get("args", {}).get("file_path", "")).strip()
+            failed = any(getattr(m, "status", None) == "error" for m in msgs)
+            if path.startswith(NOTES_DIR + "/") and not failed:
+                self.read[path] = count_words(text)
+                synth_log.info(
+                    "SYNTHESIS | READ ARTIFACT %s | %d words loaded into orchestrator context | "
+                    "%d/%d produced notes read",
+                    path, self.read[path], len(set(self.read) & set(self.produced)), len(self.produced),
+                )
+        elif call["name"] == "save_final_report":
+            if "Saved final report" in text:
+                synth_log.info(
+                    "SYNTHESIS | final report saved after reading %d/%d notes: %s",
+                    len(set(self.read) & set(self.produced)), len(self.produced), sorted(self.read),
+                )
+
     def wrap_tool_call(self, request, handler):
-        return self._check(request) or handler(request)
+        blocked = self._check(request)
+        if blocked:
+            return blocked
+        result = handler(request)
+        self._observe(request, result)
+        return result
 
     async def awrap_tool_call(self, request, handler):
-        return self._check(request) or await handler(request)
+        blocked = self._check(request)
+        if blocked:
+            return blocked
+        result = await handler(request)
+        self._observe(request, result)
+        return result
 
 
 def build_orchestrator(model=None, researcher_model=None, backend=None, report_path: Path = REPORT_PATH):
