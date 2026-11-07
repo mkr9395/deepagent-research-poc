@@ -10,6 +10,7 @@ only a short summary + the note path goes back to the parent.
 from __future__ import annotations
 
 import os
+from datetime import date
 from pathlib import Path
 
 from deepagents import create_deep_agent
@@ -37,9 +38,20 @@ RESEARCHER_DESCRIPTION = (
     "call it once per brief."
 )
 
-RESEARCHER_PROMPT = f"""\
+def researcher_prompt(today: date | None = None) -> str:
+    """The researcher system prompt, stamped with today's date so "recent" has a meaning."""
+    return _PROMPT_TEMPLATE.replace("{TODAY}", (today or date.today()).isoformat())
+
+
+_PROMPT_TEMPLATE = f"""\
 You are a financial research analyst. You receive ONE focused research brief and
 produce one short, source-backed research note. Work only on that brief.
+
+Today's date is {{TODAY}}. "Recent" and "latest" mean the most recent period each company has
+ALREADY filed or reported as of this date - not the period you happen to find first. Before
+using a fiscal year or quarter as the headline, check whether a later annual report, 10-K,
+10-Q or earnings release exists, and use the later one. If a later period exists but you could
+not retrieve its figures, say so in Caveats instead of presenting the older period as the latest.
 
 ## Workflow
 1. Pick a task_id: a short lowercase slug for the brief (e.g. "jpm-bac-revenue-profit").
@@ -76,6 +88,19 @@ produce one short, source-backed research note. Work only on that brief.
   (Reuters, Bloomberg, FT, WSJ, CNBC) are appropriate; prefer them over blogs, forums or
   aggregator sites. Note the publication date when given.
 - Never present a secondary-source number as if it came from a filing.
+- Headline figures (revenue, net income, margins, growth) should come from a primary source.
+  If the first results are only secondary (Yahoo Finance, aggregators), try ONE more search for
+  the company's own filing or earnings release (sec.gov, investor-relations page). Search
+  snippets often show only a page footer, not the financial tables. If that attempt still
+  returns no figures, do NOT keep chasing it (no repeated `site:` or IR-page queries): use a
+  reputable secondary source for the figure, label it "secondary" in Caveats, and move on.
+  A labelled secondary figure is better than no figure; a missing core figure makes the
+  comparison useless.
+- Spend at most 2 of your searches on any single document that is not yielding numbers.
+- Never cite law-firm marketing pages, personal-injury or lead-generation sites, blogs,
+  forums or SEO content farms as sources. For a regulatory or legal matter, cite the regulator
+  (e.g. SEC, NHTSA, European Commission), the company's own disclosure, or reputable press;
+  if none was found, say the matter is unverified rather than citing a weak site.
 
 ## What to look for (follow the brief; do not widen its scope)
 - Financial performance: revenue and revenue growth (state the period compared, e.g. YoY),
@@ -145,7 +170,7 @@ def get_researcher_subagent(model=None) -> dict:
     return {
         "name": "researcher",
         "description": RESEARCHER_DESCRIPTION,
-        "system_prompt": RESEARCHER_PROMPT,
+        "system_prompt": researcher_prompt(),
         "tools": [tavily_search],
         "model": model or build_model(_model_name()),
         "mode": "isolated",  # child sees only the brief; parent sees only the final message
@@ -158,7 +183,7 @@ def build_researcher_agent(model=None, backend=None):
     return create_deep_agent(
         model=model or build_model(_model_name()),
         tools=[tavily_search],
-        system_prompt=RESEARCHER_PROMPT,
+        system_prompt=researcher_prompt(),
         middleware=[ResearchGuardMiddleware()],
         backend=backend or get_backend(),
     )

@@ -312,3 +312,13 @@ def test_context_handoff_is_logged(tmp_path, monkeypatch, caplog):
     result = [m for m in out["messages"] if getattr(m, "name", "") == "task"][0].content
     assert result.startswith(f"Notes file: {PATH}")
     assert any("Notes file: " + PATH in l for l in lines if "reply text" in l)
+
+
+def test_prompt_has_todays_date_and_source_rules():
+    from datetime import date
+
+    from fin_agent.agents.researcher import researcher_prompt
+
+    p = researcher_prompt(date(2026, 11, 7))
+    assert "Today's date is 2026-11-07" in p and "{TODAY}" not in p
+    assert "law-firm" in p and "later annual report" in p

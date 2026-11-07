@@ -1,22 +1,22 @@
 ## Research Question
-Compare Apple’s and Tesla’s business outlook using the latest available fiscal-year information and subsequent commentary, priorities and developments.
+How do Apple’s and Tesla’s business outlooks compare as of November 7, 2026, based on management guidance, strategy and significant growth developments?
 
 ## Key Findings
-- [Interpretation] Apple’s outlook is anchored in iPhone and Services: both reached revenue records in fiscal Q1 2026. That indicates a sizable customer and services base, but does not establish future growth. [Apple SEC release](https://www.sec.gov/Archives/edgar/data/320193/000032019326000005/a8-kex991q1202612272025.htm)
-- [Fact] Tesla said it began providing Robotaxi rides using Cybercabs in Austin on September 3, 2026. In its Q3 update, Tesla also said it was working with regulators to approve Full Self-Driving in additional markets. These are a reported launch and an ongoing effort, respectively, not a forecast of rollout or revenue. [Tesla Q3 update](https://assets-ir.tesla.com/tesla-contents/IR/TSLA-Q3-2026-Update.pdf)
-- [Fact] In its Q2 2026 update, Tesla said Robotaxi was live in seven major US metros and anticipated Optimus production later in 2026. The latter was a management expectation, not a reported production result. [Tesla Q2 update](https://assets-ir.tesla.com/tesla-contents/IR/TSLA-Q2-2026-Update.pdf)
-- [Interpretation] The available evidence points to different opportunities: Apple’s devices and services versus Tesla’s autonomous transport and robotics. Neither opportunity’s future contribution is established by these results.
+- [Fact] Apple CFO Kevan Parekh expects December-quarter revenue to rise 7%–10% year over year and services revenue to rise 8%–9%. He cited licensing and foreign-exchange headwinds to services. These are forecasts, not results. [Yahoo Finance earnings coverage](https://finance.yahoo.com/markets/stocks/live/apple-earnings-live-apple-beats-q4-estimates-on-strong-iphone-sales-but-misses-on-china-revenue-221806957.html).
+- [Fact] Apple management described memory pricing pressure as unprecedented. The next quarter’s outcome will depend partly on component costs as well as demand. [Yahoo Finance](https://finance.yahoo.com/markets/stocks/live/apple-earnings-live-apple-beats-q4-estimates-on-strong-iphone-sales-but-misses-on-china-revenue-221806957.html).
+- [Fact] Tesla is investing in AI, robotics and energy. Its Q3 update says battery availability limits the pace of its global vehicle production ramp; it shipped the first Megapacks using entirely its own LFP cells. [Tesla Q3 update](https://assets-ir.tesla.com/tesla-contents/IR/TSLA-Q3-2026-Update.pdf).
+- [Fact] Tesla plans to expand Cybercab beyond Austin during 2026, CNBC reported October 21; this is a plan, not an accomplished rollout. Its Q3 energy revenue fell 16% year over year, notwithstanding the longer-term energy opportunity. [CNBC](https://www.cnbc.com/2026/10/21/tesla-tsla-q3-2026-earnings-report.html); [Tesla 10-Q](https://www.sec.gov/Archives/edgar/data/1318605/000162828026066775/tsla-20260930.htm).
+- [Interpretation] Apple provides a quantified near-term revenue outlook, while Tesla’s cited outlook relies more on executing capital-intensive vehicle, autonomy, robotics and energy projects. Tesla’s falling quarterly energy revenue illustrates the difference between strategic opportunity and realized growth.
 
 ## Financial Facts
-- **Apple:** FY2026 ended September 26, 2026; the retrieved 10-K excerpt did not establish annual revenue ([company filing](https://s2.q4cdn.com/470004039/files/doc_earnings/2026/q4/filing/10K-Q4-2026-as-filed.pdf), November 3, 2026). Fiscal Q1 2026 revenue was **$143.8 billion**, up **16% year over year** ([SEC-filed release](https://www.sec.gov/Archives/edgar/data/320193/000032019326000005/a8-kex991q1202612272025.htm)).
-- **Tesla:** FY2025 revenue was **$94.83 billion**, according to a secondary financial-data provider ([Tavily company data](https://tavily.com/knowledge/company/jhbNmWAZiXj6)); a primary-source annual figure was not retrieved.
+- Apple: fiscal Q4 2026 actual financial figures were not verified from an eligible source. Its subsequent December-quarter guidance is stated above; it is not actual revenue. [Yahoo Finance](https://finance.yahoo.com/markets/stocks/live/apple-earnings-live-apple-beats-q4-estimates-on-strong-iphone-sales-but-misses-on-china-revenue-221806957.html).
+- Tesla: Q3 2026 energy generation and storage revenue decreased $534 million, or 16%, year over year (company 10-Q: https://www.sec.gov/Archives/edgar/data/1318605/000162828026066775/tsla-20260930.htm). Q3 operating cash flow was $6.3 billion and free cash flow $1.5 billion (company update: https://assets-ir.tesla.com/tesla-contents/IR/TSLA-Q3-2026-Update.pdf).
 
 ## Sources
-- Apple, fiscal 2026 Form 10-K, November 3, 2026: https://s2.q4cdn.com/470004039/files/doc_earnings/2026/q4/filing/10K-Q4-2026-as-filed.pdf
-- Apple, fiscal Q1 2026 earnings release, SEC filing: https://www.sec.gov/Archives/edgar/data/320193/000032019326000005/a8-kex991q1202612272025.htm
-- Tesla, Q2 2026 update: https://assets-ir.tesla.com/tesla-contents/IR/TSLA-Q2-2026-Update.pdf
+- Yahoo Finance, Apple earnings coverage: https://finance.yahoo.com/markets/stocks/live/apple-earnings-live-apple-beats-q4-estimates-on-strong-iphone-sales-but-misses-on-china-revenue-221806957.html
 - Tesla, Q3 2026 update: https://assets-ir.tesla.com/tesla-contents/IR/TSLA-Q3-2026-Update.pdf
-- Tavily, Tesla company financial data: https://tavily.com/knowledge/company/jhbNmWAZiXj6
+- Tesla, Q3 2026 Form 10-Q: https://www.sec.gov/Archives/edgar/data/1318605/000162828026066775/tsla-20260930.htm
+- CNBC, October 21, 2026: https://www.cnbc.com/2026/10/21/tesla-tsla-q3-2026-earnings-report.html
 
 ## Caveats
-Apple’s fiscal year ends in September; Tesla’s ends in December. The latest Apple annual revenue and detailed subsequent management outlook were not verified from the retrieved excerpts. Tesla’s FY2025 revenue is secondary-source data; an annual primary-source figure and subsequent numerical revenue or delivery guidance were not verified. Apple numerical guidance was likewise not verified: this does not establish that either company issued none. Availability of a later Tesla full-year report was not independently established.
+Apple’s latest FY2026 release and actual annual and Q4 figures were not retrieved; its management forecasts are reported through secondary coverage. Tesla FY2025 annual figures were not retrieved; Q3 2026 is its latest identified update. Apple’s fiscal year ends in September, Tesla’s in December. Forecasts and expansion plans are uncertain and not directly comparable to realized results.

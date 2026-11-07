@@ -1,50 +1,49 @@
-# Apple vs. Tesla: Financial and Business Comparison
+# Apple vs. Tesla: Financial Comparison
 
 ## Executive Summary
-- In FY2025, Apple’s revenue grew approximately **6.4%**, while Tesla’s fell **2.9%**; Apple’s revenue was about **4.4 times** Tesla’s. These are calculated from reported figures, and fiscal year-ends differ. [1][2][3]
-- Apple’s calculated net margin was **26.9%**, versus **4.0%** for Tesla on an attributable-income basis—a roughly **22.9 percentage-point** difference. [1][2][3]
-- Apple faces app-distribution enforcement; Tesla faces both regulation-sensitive credit revenue and vehicle-safety scrutiny. The financial impact of these risks cannot be fully compared from the available evidence. [2][4][5][6]
-- Apple’s recent opportunity is rooted in iPhone and Services; Tesla is pursuing autonomous transport and robotics. Their future contributions are uncertain. [7][8][9]
+- Apple reported $478.8 billion in FY2026 revenue, up 15.1%; Tesla reported $94.8 billion in FY2025, down 2.9%. The fiscal years end nine months apart, limiting direct comparison. [1][2]
+- Apple’s calculated net margin was 27.6%, versus Tesla’s 4.1%—a 23.5-percentage-point difference across those noncontemporaneous years. [1][2]
+- Apple disclosed potential inventory and commitment losses; Tesla reported substantial debt and lease obligations and faces a vehicle-safety investigation. Apple’s specific regulatory actions could not be verified in the available research. [1][2][5]
+- Apple management forecast near-term revenue growth; Tesla’s opportunities include autonomy, robotics and energy, but its cited plans depend on execution. [6][7][8]
 
 ## Revenue and profitability
 
-| FY2025, US$ billions | Apple | Tesla |
+| Metric | Apple, FY ended Sep. 26, 2026 | Tesla, FY ended Dec. 31, 2025 |
 |---|---:|---:|
-| Revenue | 416.16 | 94.83 |
-| Revenue growth, calculated | +6.4% | −2.9% |
-| Net income | 112.01 | 3.79 attributable to common stockholders |
-| Net margin, calculated | 26.9% | 4.0% attributable basis |
+| Revenue | $478.834bn | $94.827bn |
+| Revenue growth, calculated year over year | 15.1% | −2.9% |
+| Consolidated net income | $132.175bn | $3.855bn |
+| Net margin, calculated | 27.6% | 4.1% |
 
-Apple’s annual revenue is from Yahoo Finance, a **secondary source**; Apple’s net income and Tesla’s figures are from company filings. Tesla’s attributable income is not exactly the same measure as consolidated net income. Apple’s year ended September 27, 2025, and Tesla’s ended December 31, 2025. [1][2][3]
+Sources: company 10-Ks. Tesla revenue is calculated from its two reported segment revenues. [1][2]
 
-**Key differences:** Apple was larger, grew faster and earned a substantially higher margin in these fiscal years. More recent evidence is not a like-for-like comparison: Apple reported Q1 FY2026 revenue of $143.8 billion, up 16% year over year, while Tesla reported Q2 2026 revenue of $28.2 billion, up 26%. [7][8]
+**Key differences:** Apple’s revenue was approximately 5.0 times Tesla’s and its growth rate was 18.0 percentage points higher, calculated from the reported annual figures. Apple also earned substantially more per dollar of sales. These are comparisons of different fiscal periods, not matched-year results. [1][2]
+
+**More recent Tesla evidence:** Q3 2026 revenue was $28.05bn, approximately 0.2% lower year over year; consolidated net income was $804m and the calculated net margin was approximately 2.9%. This quarter is not directly comparable to Apple’s full year. [3][4]
 
 ## Major financial and regulatory risks
 
-- **Apple:** The company warns that adverse legal proceedings or investigations could harm results and financial condition. The European Commission imposed a **€500 million** Digital Markets Act fine in April 2025 over app-steering practices; Apple appealed, according to secondary reporting. The appeal outcome was not verified. [3][4][5]
-- **Tesla:** FY2025 automotive sales fell from $72.480 billion to $65.821 billion, approximately **9.2%**, calculated; regulatory-credit revenue fell **$770 million, or 28%**. Tesla says credit revenue depends on regulation and demand from other automakers. [2] Secondary reporting describes a U.S. safety investigation into Full Self-Driving behavior; an investigation is not a defect finding, and its outcome was not verified. [6]
-
-**Key differences:** Apple’s cited concrete exposure is app-store enforcement and its associated penalty; Tesla’s includes a revenue stream directly exposed to policy changes as well as safety scrutiny. Tesla’s falling automotive sales add financial pressure. The evidence does not establish which company’s total risk exposure is greater. [2][4][6]
+- **Apple:** Its FY2026 filing identifies potential inventory and other asset write-downs and cancellation risks on purchase commitments. These are disclosed possibilities, not reported losses; their monetary exposure was not found. [1] A specific recent regulatory action could not be verified in the available research, so Apple’s regulatory exposure cannot be adequately assessed here.
+- **Tesla:** At December 31, 2025, it reported $8.18bn of debt principal and $7.96bn of minimum lease payments, including $1.58bn and $1.32bn respectively due within 12 months. These are distinct obligations, not evidence by themselves of a liquidity shortfall. [2] Reuters reported that NHTSA escalated an investigation in March 2026 covering approximately 3.2 million vehicles equipped with Full Self-Driving; the investigation was not a defect finding or recall order. Its subsequent status and potential costs were not verified. [5]
+- **Key differences:** Apple’s identified exposure is to potential write-downs and commitments, while Tesla’s cited exposures include quantified payment obligations and a specific safety investigation. The incomplete Apple regulatory evidence prevents a balanced ranking of regulatory risk. [1][2][5]
 
 ## Business outlook
 
-- **Apple:** Fiscal Q1 2026 produced record iPhone and Services revenue. This suggests a strong existing platform for future activity, but does not establish future growth; numerical guidance was not verified. [7]
-- **Tesla:** Management reported Robotaxi operations in seven major U.S. metros in its Q2 2026 update and said it expected Optimus production later in 2026. Its Q3 update reported Cybercab rides in Austin and efforts to obtain Full Self-Driving approvals in additional markets. These statements do not establish future revenue or successful scale-up. [8][9]
+- **Apple:** CFO Kevan Parekh forecast December-quarter revenue growth of 7%–10% year over year and services growth of 8%–9%, according to Yahoo Finance. Management cited licensing and foreign-exchange headwinds for services and memory-price pressure. These are forecasts and commentary, not realized results. [6]
+- **Tesla:** The company is investing in AI, robotics and energy; its Q3 update said battery availability constrains its vehicle-production ramp. [7] CNBC reported a plan to expand Cybercab beyond Austin during 2026; execution was not verified. [8] Q3 energy generation and storage revenue fell 16% year over year, illustrating that opportunity does not ensure near-term growth. [3]
+- **Key differences:** Apple offered a quantified near-term growth forecast; Tesla’s cited opportunities are more dependent on executing new vehicle, autonomy and energy projects. This is an interpretation, not a prediction of outcomes. [6][7][8]
 
-**Key differences:** Apple’s opportunity builds on established device and services businesses; Tesla’s cited opportunities depend more on expanding autonomous transport and developing robotics. The available evidence does not quantify either opportunity’s future contribution. [7][8][9]
+## Overall Comparison
+Apple showed faster growth and a much higher margin in the reported annual periods; Tesla’s outlook places greater emphasis on scaling new projects. Different fiscal dates, distinct business models and incomplete regulatory evidence limit the strength of a direct comparison. [1][2][6][7]
 
-## Overall comparison
-Apple leads on FY2025 scale, growth and margin; Tesla’s recent quarterly growth and emerging autonomy and robotics initiatives offer a different business trajectory, but their future contribution is unproven. [1][2][3][7][8][9]
-
-**Evidence gaps and uncertainty:** Apple’s FY2026 annual revenue was not verified even though a later annual filing was identified, so FY2025 is not necessarily its latest full year. Tesla’s latest full-year availability was not independently established. Comparable recent-quarter profitability, Apple-specific balance-sheet or cash-flow risks, current regulatory-case outcomes, and numerical outlook guidance for either company were not verified. Regulatory-action details cited above are secondary reporting. Fiscal periods differ, and rounded figures affect calculated ratios.
+**Evidence gaps and uncertainty:** Apple-specific regulatory actions, Tesla’s current investigation status and costs, later Tesla debt and lease balances, Tesla annual gross and operating margins, and separate Apple Q4 figures were not verified in the research notes. Apple outlook guidance and Tesla investigation reporting are secondary sources. Forecasts and plans may not materialize.
 
 ## Sources
-1. [Yahoo Finance, Apple financials](https://finance.yahoo.com/quote/AAPL/financials), secondary data.
+1. [Apple FY2026 Form 10-K](https://www.sec.gov/Archives/edgar/data/320193/000032019326000026/aapl-20260926.htm).
 2. [Tesla FY2025 Form 10-K](https://www.sec.gov/Archives/edgar/data/1318605/000162828026003952/tsla-20251231.htm).
-3. [Apple FY2025 Form 10-K](https://www.sec.gov/Archives/edgar/data/320193/000032019325000079/aapl-20250927.htm).
-4. [Goodwin, EU DMA decisions, June 2025](https://www.goodwinlaw.com/en/insights/publications/2025/06/insights-practices-antc-10-key-takeaways-from-the-european), secondary reporting.
-5. [EU Insider, Apple appeal](https://www.euinsider.eu/news/apple-appeals-eu500-million-eu-fine-for-digital-markets-act-violation), secondary reporting.
-6. [Aguiar Injury Lawyers, Tesla FSD investigation](https://aguiarinjurylawyers.com/tesla-fsd-investigation-2026), secondary reporting.
-7. [Apple fiscal Q1 2026 earnings release](https://www.sec.gov/Archives/edgar/data/320193/000032019326000005/a8-kex991q1202612272025.htm).
-8. [Tesla Q2 2026 update](https://assets-ir.tesla.com/tesla-contents/IR/TSLA-Q2-2026-Update.pdf).
-9. [Tesla Q3 2026 update](https://assets-ir.tesla.com/tesla-contents/IR/TSLA-Q3-2026-Update.pdf).
+3. [Tesla Q3 2026 Form 10-Q](https://www.sec.gov/Archives/edgar/data/1318605/000162828026066775/tsla-20260930.htm).
+4. [Tesla Q3 2026 results, October 21, 2026](https://ir.tesla.com/_flysystem/s3/sec/000162828026066738/tsla-20261021-gen.pdf).
+5. [Reuters via U.S. News, March 19, 2026](https://www.usnews.com/news/top-news/articles/2026-03-19/us-auto-safety-regulator-opens-probe-into-tesla-vehicles-with-fsd).
+6. [Yahoo Finance, Apple earnings coverage](https://finance.yahoo.com/markets/stocks/live/apple-earnings-live-apple-beats-q4-estimates-on-strong-iphone-sales-but-misses-on-china-revenue-221806957.html).
+7. [Tesla Q3 2026 update](https://assets-ir.tesla.com/tesla-contents/IR/TSLA-Q3-2026-Update.pdf).
+8. [CNBC, Tesla earnings, October 21, 2026](https://www.cnbc.com/2026/10/21/tesla-tsla-q3-2026-earnings-report.html).
