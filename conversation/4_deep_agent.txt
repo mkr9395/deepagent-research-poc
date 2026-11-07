@@ -1,0 +1,867 @@
+
+> <ide_opened_file>The user opened the file
+  d:\claude\deepagent-research-poc\conversation\3_research_subagent.txt in the
+  IDE. This may or may not be related to the current task.</ide_opened_file>
+
+> Now build the main Deep Agent.
+
+  Use LangChain Deep Agents rather than implementing our own agent loop.
+
+  The main agent should:
+
+  1. receive the user's financial comparison question
+  2. preserve the original request
+  3. identify the companies being compared
+  4. understand the requested comparison dimensions
+  5. create a research plan
+  6. decide which focused research tasks are actually necessary
+  7. delegate those tasks to the reusable research subagent
+  8. collect the concise results and artifact references
+  9. read the relevant research artifacts from the Deep Agents filesystem
+  during synthesis
+  10. synthesize the comparison
+  11. perform a lightweight completeness check against the original request
+  12. save the final report to:
+      outputs/final_report.md
+
+  Do not create:
+  - three permanently separate research agents
+  - a separate synthesis agent
+  - a separate verification agent
+  - a vector database
+  - a RAG pipeline
+  - a database
+  - FastAPI
+  - UI
+  - Docker
+  - Kubernetes
+
+  The important Deep Agents capabilities demonstrated should be:
+  - planning
+  - subagent delegation
+  - reusable subagent
+  - filesystem/context management
+  - tool use
+  - context isolation
+  - long-running research style
+
+  Keep the architecture simple.
+
+● I'll start by looking at the existing code.
+
+  Searched for 1 pattern, read 2 files, ran 1 shell command (ctrl+o to expand)
+
+● Outputs are large; I'll read the key files directly.
+
+  Searched for 1 pattern, read 3 files, ran 2 shell commands (ctrl+o to expand)
+
+● Write(fin_agent\agents\orchestrator.py)
+  ⎿  Wrote 167 lines to fin_agent\agents\orchestrator.py
+       1 """The main Deep Agent: plans, delegates to the reusable `resear
+         cher`, synthesizes.
+       2
+       3 One orchestrator built with `create_deep_agent`. It relies on th
+         e framework for:
+       4   * planning            - built-in `write_todos`
+       5   * delegation          - built-in `task` tool -> the single `re
+         searcher` subagent
+       6                           (called once per focused brief; contex
+         t-isolated)
+     … +161 lines (ctrl+o to expand)
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● The orchestrator is built and passes an offline smoke test. I haven't run it
+  against the real models or Tavily.
+
+  Without the real keys, the offline test covers the whole flow. It plans with
+  write_todos, delegates once to the researcher, and writes a note into the
+  sandbox. It then reads that note, gets one report rejected, and saves a valid
+  one. The full suite is 42 passed.
+
+  What I changed
+  - orchestrator.py (fin_agent/agents/orchestrator.py): one create_deep_agent
+    with the single reusable researcher subagent.
+    - Prompt: it covers your 12 steps: identify companies and dimensions, plan,
+      group them into at most 3 research tasks (the Tavily guard's task limit),
+      delegate, collect summaries and paths, read the notes, synthesize, check
+      completeness against the original request, and save.
+    - save_final_report: a tool that writes outputs/final_report.md outside the
+      sandbox. It rejects reports over 700 words, reports with no "Coverage and
+      Gaps" section, and reports with no source URLs. The model then shortens
+      and retries.
+    - OrchestratorGuardMiddleware: blocks the orchestrator's own write_file,
+      edit_file and delete. Notes belong to the researcher, and the report goes
+      through the tool.
+  - main.py: python main.py "Compare ..." saves the original request, resets the
+    Tavily budget, runs the agent, and prints the result. -v logs searches and
+    the context hand-offs.
+  - Fresh run state: each run first deletes outputs/research/notes/*.md and the
+    old report, so the agent can't read stale notes. That is my addition.
+  - Config and tests: ORCHESTRATOR_MODEL is added to .env.example (default
+    gpt-6.1-terra), the report path is in .gitignore, and the new test is
+    tests/test_orchestrator.py.
+
+  The report path differs from CLAUDE.md, which says outputs/research/report.md.
+  I followed your request and used outputs/final_report.md.
+
+  Next step: a live run, for example python main.py -v "Compare Microsoft and
+  Alphabet on revenue growth, profitability, risks and outlook". It spends real
+  OpenAI and Tavily quota, up to 15 searches. Per CLAUDE.md I won't inspect
+  .env, so tell me if you want me to run it, or run python main.py --check
+  yourself first.
+
+> fix the below error:
+  File "D:\claude\deepagent-research-poc\main.py", line 64
+      print("
+            ^
+  SyntaxError: unterminated string literal (detected at line 64)
+
+  Searched for 1 pattern, read 1 file (ctrl+o to expand)
+
+● My earlier edit script turned the \n escapes into real line breaks. I'm fixing
+  those three lines.
+
+● Update(main.py)
+  ⎿  Added 3 lines, removed 6 lines
+      61          {"messages": [{"role": "user", "content": query}]},
+      62          config={"recursion_limit": 100},
+      63      )
+      64 -    print("                                                    
+      65 -" + result["messages"][-1].text)                               
+      64 +    print("\n" + result["messages"][-1].text)                  
+      65      if REPORT_PATH.is_file():
+      67 -        print(f"                                               
+      68 -Final report: {REPORT_PATH}")                                  
+      66 +        print(f"\nFinal report: {REPORT_PATH}")                
+      67          return 0
+      70 -    print("                                                    
+      71 -No final report was saved.")                                   
+      68 +    print("\nNo final report was saved.")                      
+      69      return 1
+      70  
+      71  
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The syntax error is fixed. My earlier edit script had turned three \n escapes
+  in main.py (main.py#L64-L71) into real line breaks, which left the strings
+  unterminated.
+
+  main.py now compiles, and running it without arguments prints the usage text.
+  The 42 tests still pass. The test suite never imports main.py, which is why it
+  missed this earlier.
+
+> <ide_opened_file>The user opened the file
+  d:\claude\deepagent-research-poc\outputs\final_report.md in the IDE. This may
+  or may not be related to the current task.</ide_opened_file>
+
+> which parts are provided by Deep Agents?
+
+● Provided by Deep Agents (the deepagents package):
+  - create_deep_agent: the agent loop itself. We don't write one.
+  - write_todos: the planning tool the orchestrator uses for its research plan.
+  - task: delegation to a subagent. It runs the researcher in "isolated" mode,
+    so it sees only the brief, and the parent gets back only its final message.
+  - Filesystem tools: ls, read_file, write_file, edit_file, glob and grep, plus
+    FilesystemBackend, which we sandbox to outputs/research/ with
+    virtual_mode=True.
+  - Subagent and middleware plumbing: the SubAgent spec format and the way
+    middleware wraps tool calls.
+
+  Ours, plugged into Deep Agents:
+  - Prompts: the orchestrator prompt in orchestrator.py
+    (fin_agent/agents/orchestrator.py) and the researcher prompt in
+    researcher.py (fin_agent/agents/researcher.py).
+  - Custom tools: tavily_search (with the budget guard), think_tool and
+    save_final_report.
+  - Guard middleware: research_guard.py (fin_agent/research_guard.py) enforces
+    the 500-word note cap, the note path and the result cap.
+    OrchestratorGuardMiddleware blocks the orchestrator's own file writes.
+  - Glue: request.py (fin_agent/request.py) saves the original request, and
+    main.py resets per-run state and starts the run.
+
+  Not from Deep Agents: the word limits, Tavily budget, source-URL rules and the
+  "Coverage and Gaps" check. We enforce those in code, because prompts alone
+  aren't reliable.
+
+> which parts we implemented ourselves
+
+● Implemented ourselves (everything outside the deepagents package):
+
+  Tools
+  - tavily_search.py (fin_agent/tools/tavily_search.py): the Tavily wrapper. It
+    enforces the per-task cap (5), the task cap (3) and the per-request cap
+    (15). It also has the query cache, search logging, source-tier labels,
+    snippet trimming and the gap_reason rule for repeat searches.
+  - think_tool.py (fin_agent/tools/think_tool.py): the reflection tool the
+    researcher calls after each search.
+  - check_tavily.py (fin_agent/tools/check_tavily.py): a Tavily connectivity
+    check.
+  - save_final_report in orchestrator.py (fin_agent/agents/orchestrator.py):
+    writes outputs/final_report.md and rejects reports over 700 words, with no
+    "Coverage and Gaps" section, or with no source URLs.
+
+  Guards and middleware
+  - research_guard.py (fin_agent/research_guard.py): ResearchGuardMiddleware and
+    its helpers.
+    - Notes can only be written to /notes/<slug>.md, are capped at 500 words,
+      and need the five required sections.
+    - edit_file and delete are blocked for the researcher.
+    - The reply to the parent is capped at 500 words and always starts with a
+      verified Notes file: line.
+    - Parent-to-researcher context hand-offs are logged.
+  - OrchestratorGuardMiddleware: blocks the orchestrator's own file writes.
+
+  Agent definitions
+  - The orchestrator prompt and build_orchestrator.
+  - The researcher prompt and get_researcher_subagent. These configure Deep
+    Agents rather than replace it.
+
+  Glue
+  - request.py (fin_agent/request.py): saves the original request, with a
+    timestamped archive.
+  - main.py: the CLI, the --check command, and the per-run reset that deletes
+    old notes and the old report.
+
+  Tests
+  - Offline tests with scripted fake models and a fake Tavily, in tests/.
+
+> how the main agent delegates? explain it
+
+● Delegation is Deep Agents' built-in task tool. We only supply the subagent
+  definition and the instructions for using it.
+
+  1. Registration. build_orchestrator in orchestrator.py
+  (fin_agent/agents/orchestrator.py) passes
+  subagents=[get_researcher_subagent(...)] to create_deep_agent. That spec has a
+  name ("researcher"), a description, a system_prompt, its own tools
+  (tavily_search, think_tool), a model, and its guard middleware. Deep Agents
+  automatically gives the orchestrator a task tool. The tool's description lists
+  the available subagents, using our description text.
+
+  2. The decision is the model's. Our orchestrator prompt tells it to group the
+  request into at most 3 focused tasks and to skip anything not asked for. It
+  also says each brief must name all the companies, the topic and the period.
+  Nothing in code decides the tasks. The model chooses, and the code only caps
+  the number of tasks (via the Tavily guard).
+
+  3. The call. The model emits something like:
+  task(subagent_type="researcher",
+       description="Compare MSFT and GOOGL on revenue growth and profitability,
+  FY2025. Keep source URLs.")
+  It can issue several task calls in one step, and they then run in parallel.
+  The same researcher definition is reused each time. Only the brief changes.
+
+  4. Isolation. The spec uses "mode": "isolated". The researcher starts with a
+  fresh context containing only the brief. It doesn't see the user's request,
+  the plan, or other tasks' results. It searches, reflects with think_tool, and
+  writes a note to /notes/<slug>.md in the sandboxed filesystem.
+
+  5. What comes back. Only the researcher's final message returns to the
+  orchestrator, as the task tool result. ResearchGuardMiddleware.after_agent
+  rewrites it so the first line is the real Notes file: <path>. It also
+  truncates the message to 500 words. The raw search results and the note body
+  stay out of the orchestrator's context.
+
+  6. Later use. At synthesis the orchestrator calls read_file on the paths it
+  collected. It then does the completeness check and calls save_final_report.
+
+  The offline test tests/test_orchestrator.py exercises this path with scripted
+  models.
+
+> how the filesystem is used during synthesis?
+
+● Setup. One FilesystemBackend (from get_backend() in researcher.py
+  (fin_agent/agents/researcher.py)) is rooted at outputs/research/ with
+  virtual_mode=True. It is shared by the orchestrator and the subagent. Paths
+  look like /notes/x.md and can't escape that folder.
+
+  Before synthesis. The researcher wrote its detailed findings to
+  /notes/<slug>.md, capped at 500 words and with five required sections. The
+  orchestrator's context holds only the short summary and the Notes file: path
+  from each task, not the findings.
+
+  During synthesis (step 6 of the orchestrator prompt):
+  1. The orchestrator calls the built-in read_file on each /notes/... path it
+     collected. It can use ls or glob on /notes if a path is missing.
+  2. Only now do the note contents enter its context, one note at a time. With
+     at most 3 notes of 500 words each, that is small.
+  3. It writes the comparison from those notes only, keeping the source URLs
+     from the "Financial Facts" and "Sources" sections. The "Caveats" sections
+     feed the gap flags.
+  4. If a task returned NOT SAVED, there is no note to read, so its findings are
+     treated as unverified.
+
+  Writing. The orchestrator cannot write to the filesystem, because
+  OrchestratorGuardMiddleware blocks write_file, edit_file and delete. It saves
+  the report through save_final_report, which writes outputs/final_report.md
+  outside the sandbox.
+
+  Why this design. The search noise stays inside the researcher's context, the
+  evidence persists on disk, and the orchestrator reads only what it needs, when
+  it needs it. main.py clears old notes at the start of each run, so synthesis
+  can't pick up stale files.
+
+> explain how is the final report generate and how the sub agent output is used
+  to generate it? is the final report created only using the sub agent output
+  or not
+
+● How the report is generated
+
+  The orchestrator model writes the report itself. No code generates it. The
+  model composes the markdown in the arguments of one
+  save_final_report(markdown=...) call. The tool only validates it (700 words or
+  fewer, a "Coverage and Gaps" section, source URLs) and writes it to
+  outputs/final_report.md. If validation fails, the tool returns an error and
+  the model shortens the report and calls the tool again.
+
+  How the subagent output is used
+
+  There are two kinds of subagent output.
+  1. The reply is a short summary plus the Notes file: path. It sits in the
+     orchestrator's context from the start and tells it what was found and where
+     the note is.
+  2. The note is a markdown file on disk, with the facts, figures, URLs and
+     caveats. The orchestrator reads it with read_file at synthesis and works
+     from that.
+
+  The prompt tells the orchestrator to synthesize from the notes and to keep
+  every figure's source URL. It also tells the orchestrator to flag anything
+  unverified, stale or not found.
+
+  Is it built only from subagent output?
+
+  The intended design is yes for facts. The orchestrator has no web-search tool,
+  so it has no way to gather new facts. Its prompt forbids inventing numbers
+  and says to build the comparison from the notes only.
+
+  It is not enforced in code, though. The orchestrator model also contributes:
+  - Structure and wording: the summary, the comparison framing and the
+    conclusions are its own writing.
+  - The user's request: it is in the conversation, so it decides which
+    dimensions to cover.
+  - Its own knowledge: it could add a figure from memory, and nothing checks
+    that. Code only checks that the report has some URL, not that each number
+    traces to a note.
+
+  If you want that guarantee, a simple next step is a code check that every URL
+  in the report appears in one of the notes.
+
+> Now improve the research planning.
+  I do NOT want the main agent to blindly execute three fixed research tasks
+  every time.
+
+  It should dynamically determine which research tasks are needed based on the
+  user's question.
+
+  For example:
+
+  If the user asks for:
+  "Compare TESLA and Apple based on revenue growth and profitability."
+  the agent should not automatically perform a full risk and business outlook
+  investigation.
+
+  If the user asks for:
+  "Compare Amazon and Walmart based on revenue performance, profitability,
+  major regulatory risks and business outlook."
+
+  then multiple research tasks may be justified.
+
+  Keep the hard ceiling of 3 research tasks per request.
+
+  The main agent should decide:
+  - which tasks are necessary
+  - whether a task can be skipped
+  - what specific question each task should answer
+
+  The reusable research subagent remains unchanged.
+
+  Add a lightweight test or example showing that the task decomposition changes
+  depending on the user's request.
+
+  Explain the design tradeoff.
+
+  Read 1 file, ran 1 shell command (ctrl+o to expand)
+
+● The shell choked on the inline script, so I'll make the edits directly.
+
+● Update(fin_agent\agents\orchestrator.py)
+  ⎿  Added 27 lines, removed 13 lines
+      42  
+      43  ## Workflow
+      44  1. UNDERSTAND. From the user's request, identify (a) the compan
+          ies and (b) the requested
+      45 -   comparison dimensions (e.g. revenue growth, profitability, r
+         -isks, outlook). Use only what                                  
+      46 -   the user asked for; if a period is not given, use the latest
+         - fiscal year available.                                        
+      47 -2. PLAN. Call write_todos with a short plan: the research tasks
+         -, then "read notes",                                           
+      48 -   "synthesize", "completeness check", "save report". Keep it u
+         -pdated as you progress.                                        
+      49 -3. DECIDE WHAT IS NECESSARY. Group the dimensions into the FEWE
+         -ST focused research tasks                                      
+      50 -   that cover the request - at most {MAX_RESEARCH_TASKS} tasks 
+         -(a hard budget enforced in code).                              
+      51 -   Each task brief covers ONE theme for ALL the companies (e.g.
+         - "revenue growth and                                           
+      52 -   profitability", or "risks and outlook"). Skip anything the u
+         -ser did not ask for. A narrow                                  
+      53 -   question may need only one or two tasks.                    
+      54 -4. DELEGATE. Call the `task` tool with subagent_type="researche
+         -r" once per task; independent                                  
+      55 -   tasks may be issued in the same step. The brief must be self
+         --contained (the researcher                                     
+      56 -   sees nothing else): list the companies, the topic, the fisca
+         -l period, and remind it to keep                                
+      57 -   source URLs. Do not paste research into briefs.             
+      45 +   comparison dimensions, in the user's own terms (e.g. "revenu
+         +e growth", "profitability",                                    
+      46 +   "regulatory risks"). If a period is not given, use the lates
+         +t fiscal year available.                                       
+      47 +2. DECIDE WHAT RESEARCH IS NECESSARY. There is no fixed task li
+         +st. Derive tasks from THIS                                     
+      48 +   request, never from a template:                             
+      49 +   - Only dimensions the user asked for may be researched. If "
+         +risks" or "outlook" was not                                    
+      50 +     asked for, do NOT research it - not even "for context".   
+      51 +   - Merge dimensions that the same sources answer (e.g. revenu
+         +e growth + profitability come                                  
+      52 +     from the same earnings releases -> ONE task). Split dimens
+         +ions that need different sources                               
+      53 +     or a different kind of evidence (e.g. regulatory risks -> 
+         +filings/regulators; outlook ->                                 
+      54 +     guidance/analyst commentary).                             
+      55 +   - Use the FEWEST tasks that cover the request: often 1, some
+         +times 2, 3 only for broad                                      
+      56 +     requests. Hard ceiling {MAX_RESEARCH_TASKS} tasks per requ
+         +est (enforced in code).                                        
+      57 +   - Each task is ONE specific question for all the companies, 
+         +not a topic label. Bad:                                        
+      58 +     "risks". Good: "What are the main regulatory/antitrust ris
+         +ks disclosed by Amazon and                                     
+      59 +     Walmart in their latest 10-K, and any recent enforcement a
+         +ctions?"                                                       
+      60 +   - A dimension may be skipped only with a stated reason (e.g.
+         + not researchable); say so in                                  
+      61 +     the report's coverage section.                            
+      62 +3. PLAN. Call submit_research_plan with the companies, the requ
+         +ested dimensions, the tasks                                    
+      63 +   (question + which requested dimensions each covers + why it 
+         +is needed) and any skipped                                     
+      64 +   dimensions. Code rejects plans that exceed the ceiling, rese
+         +arch unrequested dimensions,                                   
+      65 +   or leave a requested dimension uncovered - fix and resubmit.
+         + Then call write_todos                                         
+      66 +   mirroring the tasks plus "read notes", "synthesize", "comple
+         +teness check", "save report".                                  
+      67 +4. DELEGATE. Call the `task` tool with subagent_type="researche
+         +r", once per planned task                                      
+      68 +   (`task` is refused until a plan is accepted); independent ta
+         +sks may be issued in the same                                  
+      69 +   step. The brief must be self-contained (the researcher sees 
+         +nothing else): the task's                                      
+      70 +   question, the companies, the fiscal period, and a reminder t
+         +o keep source URLs. Do not                                     
+      71 +   paste research into briefs.                                 
+      72  5. COLLECT. Each researcher returns a short summary and a `Note
+          s file:` path. Keep only
+      73     those (summary + path). If a task returns `NOT SAVED`, treat
+           its findings as unverified.
+      74  6. READ. At synthesis time call read_file on each notes file yo
+          u need (paths start with
+
+● Update(fin_agent\agents\orchestrator.py)
+  ⎿  Added 2 lines, removed 1 line
+      78     conflicting or not found.
+      79  8. COMPLETENESS CHECK. Re-read the user's original request and 
+          check each company x
+      80     dimension is covered or explicitly marked as a gap. If an im
+          portant gap remains AND the
+      81 -   task budget allows, delegate ONE more focused task; otherwis
+         -e state the gap.                                               
+      81 +   task budget allows, call submit_research_plan again with jus
+         +t the follow-up task, then                                     
+      82 +   delegate it; otherwise state the gap.                       
+      83  9. SAVE. Call save_final_report with the full markdown. It is r
+          ejected if it exceeds
+      84     {REPORT_MAX_WORDS} words or lacks a coverage section - short
+          en and call it again.
+      85  10. REPLY with 2-4 lines: what was compared, the path saved, an
+          d the main gaps.
+
+● Update(fin_agent\agents\orchestrator.py)
+  ⎿  Added 1 line
+      17  import logging
+      18  import os
+      19  import re
+      20 +import threading                                               
+      21  from pathlib import Path
+      22  
+      23  from deepagents import create_deep_agent
+
+● Update(fin_agent\agents\orchestrator.py)  ⎿  Added 1 line
+      25  from langchain.agents.middleware import AgentMiddleware
+      26  from langchain_core.messages import ToolMessage
+      27  from langchain_core.tools import tool
+      28 +from pydantic import BaseModel, Field                          
+      29  
+      30  from fin_agent.agents.researcher import get_backend, get_resear
+          cher_subagent
+      31  from fin_agent.research_guard import NOTES_DIR, NOTE_MAX_WORDS,
+           REPORT_MAX_WORDS, count_words
+
+● Now the planner class, the middleware changes and the wiring.
+
+● Update(fin_agent\agents\orchestrator.py)
+  ⎿  Added 124 lines, removed 10 lines
+      144      return save_final_report
+      145  
+      146  
+      147 +class ResearchTask(BaseModel):                                
+      148 +    question: str = Field(description="The specific question t
+          +his task must answer, for all companies.")                    
+      149 +    dimensions: list[str] = Field(description="Requested dimen
+          +sions this task covers (user's terms).")                      
+      150 +    why_needed: str = Field(description="One line: why this ta
+          +sk is necessary for the request.")                            
+      151 +                                                              
+      152 +                                                              
+      153 +def _norm(text: str) -> str:                                  
+      154 +    return " ".join(text.lower().split())                     
+      155 +                                                              
+      156 +                                                              
+      157 +class ResearchPlanner:                                        
+      158 +    """Holds the accepted research plan and enforces it (ceili
+          +ng, scope, coverage).                                         
+      159 +                                                              
+      160 +    The model decides WHAT to research. Code only checks that 
+          +the plan is consistent with the                               
+      161 +    dimensions it declared, stays under the hard task ceiling,
+          + and that `task` calls follow it.                             
+      162 +    """                                                       
+      163 +                                                              
+      164 +    def __init__(self, max_tasks: int = MAX_RESEARCH_TASKS):  
+      165 +        self.max_tasks = max_tasks                            
+      166 +        self.plan: dict | None = None                         
+      167 +        self.delegated_total = 0  # researcher tasks started t
+          +his request (never reset)                                     
+      168 +        self.delegated_in_plan = 0                            
+      169 +        self._lock = threading.Lock()                         
+      170 +        self.submit_research_plan = self._make_tool()         
+      171 +                                                              
+      172 +    def validate(self, companies, dimensions, tasks, skipped) 
+          +-> str | None:                                                
+      173 +        remaining = self.max_tasks - self.delegated_total     
+      174 +        if not companies or not dimensions:                   
+      175 +            return "Error: list the companies and the requeste
+          +d dimensions."                                                
+      176 +        if not tasks:                                         
+      177 +            return "Error: a plan needs at least one research 
+          +task."                                                        
+      178 +        if len(tasks) > remaining:                            
+      179 +            return (                                          
+      180 +                f"Error: {len(tasks)} tasks planned but only {
+          +remaining} remain "                                           
+      181 +                f"(hard ceiling {self.max_tasks} per request).
+          + Merge or drop tasks."                                        
+      182 +            )                                                 
+      183 +        requested = {_norm(d) for d in dimensions}            
+      184 +        covered: set[str] = set()                             
+      185 +        for t in tasks:                                       
+      186 +            if not t.question.strip() or not t.dimensions:    
+      187 +                return "Error: every task needs a specific que
+          +stion and the dimensions it covers."                          
+      188 +            extra = {_norm(d) for d in t.dimensions} - request
+          +ed                                                            
+      189 +            if extra:                                         
+      190 +                return (                                      
+      191 +                    f"Error: task researches {sorted(extra)}, 
+          +which the user did not request. "                             
+      192 +                    "Remove it, or add it to dimensions only i
+          +f the request really asked for it."                           
+      193 +                )                                             
+      194 +            covered |= {_norm(d) for d in t.dimensions}       
+      195 +        missing = requested - covered - {_norm(k) for k in (sk
+          +ipped or {})}                                                 
+      196 +        if missing:                                           
+      197 +            return (                                          
+      198 +                f"Error: requested dimension(s) {sorted(missin
+          +g)} are neither covered by a task "                           
+      199 +                "nor listed in skipped with a reason."        
+      200 +            )                                                 
+      201 +        return None                                           
+      202 +                                                              
+      203 +    def _make_tool(self):                                     
+      204 +        @tool                                                 
+      205 +        def submit_research_plan(                             
+      206 +            companies: list[str],                             
+      207 +            dimensions: list[str],                            
+      208 +            tasks: list[ResearchTask],                        
+      209 +            skipped: dict[str, str] | None = None,            
+      210 +        ) -> str:                                             
+      211 +            """Record the research plan BEFORE delegating.    
+      212 +                                                              
+      213 +            Args:                                             
+      214 +                companies: companies being compared.          
+      215 +                dimensions: comparison dimensions the USER req
+          +uested (their terms).                                         
+      216 +                tasks: the necessary research tasks (hard ceil
+          +ing 3 per request, minus tasks                                
+      217 +                    already delegated). Each covers only reque
+          +sted dimensions.                                              
+      218 +                skipped: requested dimension -> reason it will
+          + not be researched.                                           
+      219 +            """                                               
+      220 +            with self._lock:                                  
+      221 +                error = self.validate(companies, dimensions, t
+          +asks, skipped)                                                
+      222 +                if error:                                     
+      223 +                    logger.warning("Plan rejected: %s", error)
+      224 +                    return error                              
+      225 +                self.plan = {                                 
+      226 +                    "companies": companies,                   
+      227 +                    "dimensions": dimensions,                 
+      228 +                    "tasks": [t.model_dump() for t in tasks], 
+      229 +                    "skipped": skipped or {},                 
+      230 +                }                                             
+      231 +                self.delegated_in_plan = 0                    
+      232 +            logger.info("PLAN | %d task(s) for %s | skipped=%s
+          +", len(tasks), dimensions, list(skipped or {}))               
+      233 +            return (                                          
+      234 +                f"Plan accepted: {len(tasks)} research task(s)
+          +. Delegate exactly these with the "                           
+      235 +                "`task` tool, then read the notes and write th
+          +e report."                                                    
+      236 +            )                                                 
+      237 +                                                              
+      238 +        return submit_research_plan                           
+      239 +                                                              
+      240 +    def allow_delegation(self) -> str | None:                 
+      241 +        """Called for each `task` call: returns an error to re
+          +fuse it, else counts it."""                                   
+      242 +        with self._lock:                                      
+      243 +            if self.plan is None:                             
+      244 +                return "Error: call submit_research_plan first
+          +; `task` is refused until a plan is accepted."                
+      245 +            if self.delegated_in_plan >= len(self.plan["tasks"
+          +]):                                                           
+      246 +                return (                                      
+      247 +                    "Error: every task in the accepted plan is
+          + already delegated. Submit a new plan "                       
+      248 +                    "for a follow-up task if an important gap 
+          +remains."                                                     
+      249 +                )                                             
+      250 +            if self.delegated_total >= self.max_tasks:        
+      251 +                return f"Error: research task ceiling ({self.m
+          +ax_tasks}) reached for this request."                         
+      252 +            self.delegated_in_plan += 1                       
+      253 +            self.delegated_total += 1                         
+      254 +        return None                                           
+      255 +                                                              
+      256 +                                                              
+      257  class OrchestratorGuardMiddleware(AgentMiddleware):
+      148 -    """The orchestrator reads notes but does not write files i
+          -tself.                                                        
+      258 +    """The orchestrator reads notes but does not write files i
+          +tself, and may only delegate                                  
+      259 +    (`task`) following an accepted research plan, within the 3
+          +-task ceiling.                                                
+      260  
+      261      Notes belong to the researcher; the report goes through `s
+           ave_final_report`.
+      262      """
+      263  
+      264 +    def __init__(self, planner: ResearchPlanner):             
+      265 +        self.planner = planner                                
+      266 +                                                              
+      267      def _check(self, request) -> ToolMessage | None:
+      268          call = request.tool_call
+      269 +        error = None                                          
+      270          if call["name"] in ("write_file", "edit_file", "delete
+           "):
+      156 -            return ToolMessage(                               
+      157 -                content=(                                     
+      158 -                    f"Error: {call['name']} is disabled for th
+          -e lead analyst. Delegate research to "                        
+      159 -                    "the researcher; save the report with save
+          -_final_report."                                               
+      160 -                ),                                            
+      161 -                name=call["name"],                            
+      162 -                tool_call_id=call["id"],                      
+      163 -                status="error",                               
+      271 +            error = (                                         
+      272 +                f"Error: {call['name']} is disabled for the le
+          +ad analyst. Delegate research to "                            
+      273 +                "the researcher; save the report with save_fin
+          +al_report."                                                   
+      274              )
+      165 -        return None                                           
+      275 +        elif call["name"] == "task":                          
+      276 +            error = self.planner.allow_delegation()           
+      277 +        if error is None:                                     
+      278 +            return None                                       
+      279 +        return ToolMessage(content=error, name=call["name"], t
+          +ool_call_id=call["id"], status="error")                       
+      280  
+      281      def wrap_tool_call(self, request, handler):
+      282          return self._check(request) or handler(request)
+
+● Update(fin_agent\agents\orchestrator.py)
+  ⎿  Added 2 lines, removed 1 line
+      287  
+      288  def build_orchestrator(model=None, researcher_model=None, back
+           end=None, report_path: Path = REPORT_PATH):
+      289      """The main Deep Agent. `researcher_model` is for tests; n
+           ormally the env decides."""
+      290 +    planner = ResearchPlanner()                               
+      291      return create_deep_agent(
+      292          model=model or _model_name(),
+      292 -        tools=[make_save_final_report(report_path)],          
+      293 +        tools=[planner.submit_research_plan, make_save_final_r
+          +eport(report_path)],                                          
+      294          system_prompt=ORCHESTRATOR_PROMPT,
+      295          subagents=[get_researcher_subagent(model=researcher_mo
+           del)],
+      296          middleware=[OrchestratorGuardMiddleware()],
+
+● Update(fin_agent\agents\orchestrator.py)
+  ⎿  Added 1 line, removed 1 line
+      293          tools=[planner.submit_research_plan, make_save_final_r
+           eport(report_path)],
+      294          system_prompt=ORCHESTRATOR_PROMPT,
+      295          subagents=[get_researcher_subagent(model=researcher_mo
+           del)],
+      296 -        middleware=[OrchestratorGuardMiddleware()],           
+      296 +        middleware=[OrchestratorGuardMiddleware(planner)],    
+      297          backend=backend or get_backend(),
+      298          name="orchestrator",
+      299      )
+
+● Now the tests and a planning-only demo.
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● The orchestrator now decides its research tasks from the request, and code
+  checks the plan before any delegation. The 47 offline tests pass. I haven't
+  run it against the real model, so I can't yet show the model choosing 1 task
+  for Tesla/Apple and several for Amazon/Walmart.
+
+  What changed in orchestrator.py (fin_agent/agents/orchestrator.py)
+  - Prompt: the fixed "revenue/profitability, then risks/outlook" grouping is
+    gone. The model now:
+    - researches only the dimensions the user asked for;
+    - merges dimensions that the same sources answer;
+    - splits dimensions that need different evidence;
+    - uses the fewest tasks that cover the request;
+    - writes each task as a specific question, not a topic label.
+  - submit_research_plan tool: the model records the companies, the requested
+    dimensions, the tasks and any skipped dimensions. Code rejects a plan if:
+    - it has more tasks than the remaining ceiling of 3;
+    - a task covers a dimension the user didn't request, which is what stops
+      Tesla/Apple getting an uninvited risk investigation;
+    - a requested dimension is neither covered nor skipped with a reason.
+  - OrchestratorGuardMiddleware: task is refused until a plan is accepted.
+    Delegations are capped at the planned count and at 3 per request. A
+    follow-up task after the completeness check needs a new, smaller plan. The
+    researcher subagent is unchanged.
+
+  Tests and demo
+  - tests/test_orchestrator.py:
+    - A narrow request is accepted as 1 merged task, and an added "risks" task
+      is rejected.
+    - A broad request is accepted as 3 tasks, and a fourth is rejected.
+    - A task for a requested dimension that is not covered or skipped is
+      rejected.
+    - Delegation follows the plan, and the same code allows 1 task for the
+      narrow request and 3 for the broad one.
+  - examples/plan_demo.py: run python -m examples.plan_demo to see the real
+    model plan both of your example requests. It makes no searches and costs a
+    couple of LLM calls. The offline tests only prove the rules are enforced,
+    not that the model chooses well, so this demo is the real check. Tell me if
+    you want me to run it.
+
+  Design tradeoff
+  - The model chooses the tasks, because that flexibility is the point of a
+    planning agent. Code enforces the hard limits: the ceiling, scope and
+    coverage.
+  - Code can't judge whether a task question is a good one. Lazy but legal plans
+    are possible, such as one vague task for everything.
+  - Matching dimension names is plain text comparison, so a model that renames a
+    dimension mid-plan can be rejected on a technicality. The error message
+    tells it how to fix that, and it can resubmit.
+  - Forcing a plan before delegation adds one tool call per run. In exchange you
+    get a decomposition you can inspect and test.
+
+> yes run and check
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● I ran the planning-only demo with the real model, and the decomposition
+  changed with the request. It made no searches.
+
+  ┌─────────────────────────────┬───────┬───────────────────────────────────┐
+  │           Request           │ Tasks │        What the model did         │
+  ├─────────────────────────────┼───────┼───────────────────────────────────┤
+  │ Tesla vs Apple: revenue     │       │ It merged both dimensions into    │
+  │ growth and profitability    │ 1     │ one task, with no risk or outlook │
+  │                             │       │  task.                            │
+  ├─────────────────────────────┼───────┼───────────────────────────────────┤
+  │ Amazon vs Walmart: revenue, │       │ Revenue and profitability were    │
+  │  profitability, regulatory  │ 3     │ merged. Regulatory risks and      │
+  │ risks, outlook              │       │ outlook each got their own task.  │
+  └─────────────────────────────┴───────┴───────────────────────────────────┘
+
+  - Task questions: each one is a specific question for both companies, such as
+    "What major regulatory risks do Amazon and Walmart disclose in their latest
+    filings, and what recent enforcement actions affect each?". None is a topic
+    label. Both plans passed the code checks on the first try.
+  - Limits of this check: it is one run per request, and it only exercises the
+    planning step. It doesn't show that the full run, with delegation, notes and
+    the final report, works end to end. That would use real Tavily searches, up
+    to 15, so I haven't run it.
+
+> what happens when the user questions needs more than 3 agents to be
+  initialised? how is the user query divided?
+
+● Short version: nothing gets initialised beyond 3 tasks. There is one
+  researcher definition, which runs once per task, so "more than 3 agents"
+  really means "more than 3 research tasks". The ceiling is enforced in code,
+  and the report discloses whatever couldn't be covered.
+
+  How the query is divided
+  1. The model extracts the companies and the dimensions the user asked for, in
+     the user's own terms.
+  2. It groups dimensions by the evidence they need. Revenue and profitability
+     share earnings releases, so they merge into one task. Regulatory risks and
+     outlook each need different sources, so they split.
+  3. Each task is one specific question covering all the companies. Tasks split
+     by dimension, not by company.
+
+  When a request seems to need more than 3 tasks
+  - The plan is rejected. submit_research_plan returns an error such as "4 tasks
+    planned but only 3 remain (hard ceiling 3). Merge or drop tasks." The model
+    then resubmits a smaller plan.
+  - Merge, then skip. The model can merge more dimensions into broader tasks.
+    For anything it can't fit, it must list the dimension under skipped with a
+    reason. Code rejects a plan that leaves a requested dimension neither
+    covered nor skipped.
+  - Gaps are disclosed. The skipped dimensions appear in the report's "Coverage
+    and Gaps" section.
+  - Late gaps. If the completeness check finds a gap after delegation, the model
+    may submit a follow-up plan, but only for the tasks left under the ceiling.
+    The middleware refuses any task call past 3.
+
+  Weaknesses
+  - Many companies: a task covers all the companies, and each task has about 5
+    searches with one company per query. With 4 or more companies, one task
+    can't research each in depth, so the notes will be thin. The note's caveats
+    and the coverage section should say so, but I haven't tested that case.
+  - Many dimensions: broad merging reduces depth per dimension. That is the
+    tradeoff of the 3-task and 15-search budget, which was your call for the
+    POC.
+  - No automatic batching: the system doesn't split a huge request into several
+    runs. It tells the user what it left out. Raising the ceiling is a
+    deliberate change in MAX_RESEARCH_TASKS and the Tavily limits, not something
+    the agent does on its own.
