@@ -1,0 +1,1237 @@
+
+> /rename sub_agent
+  ⎿  Session renamed to: sub_agent
+
+> <ide_opened_file>The user opened the file
+  d:\claude\deepagent-research-poc\conversation\2_tavily_search_thinktool.txt
+  in the IDE. This may or may not be related to the current
+  task.</ide_opened_file>
+
+> now we have to build the resuable research subagent.
+
+  This subagent receives ONE focused research task from the main Deep Agent.
+  For example:
+  "Research recent revenue growth and profitability for JPMorgan Chase and Bank
+  of America."
+  or
+  "Research major financial and regulatory risks affecting JPMorgan Chase and
+  Bank of America."
+
+  The subagent should:
+
+  1. understand the focused task
+  2. search using Tavily
+  3. use the think tool when useful
+  4. decide whether a second search is justified
+  5. synthesize the evidence
+  6. write the detailed research findings to a markdown file using the Deep
+  Agents filesystem capability
+  7. return a concise result to the parent agent
+
+  The filesystem is important here.
+
+  The detailed research should be saved somewhere like:
+
+  outputs/research/<appropriate_task_name>.md
+
+  Each research markdown artifact must be <=350 words.
+
+  The direct result returned to the parent agent must also be <=500 words.
+
+  The research artifact should contain:
+  - research question
+  - key findings
+  - relevant financial facts
+  - source references
+  - important caveats or uncertainty
+
+  Do not dump raw web pages.
+  Do not include long quotations.
+  Do not create a separate agent for every research category.
+
+  The same research subagent must be reusable for:
+  - financial performance
+  - risk
+  - business outlook
+  - other focused research tasks
+
+  Apply the existing Tavily limits:
+  - max 3 calls per task
+  - max 3 research tasks per request
+  - max 9 Tavily calls per request
+
+  Also enforce the 350-word limit in application code where practical, not only
+  through the prompt.
+
+  Implement only the research subagent and the minimum supporting code.
+
+● I'll start by looking at the existing code.
+
+  Searched for 1 pattern, read 7 files, ran 1 shell command (ctrl+o to expand)
+
+● Now the installed deepagents API (backends, subagent spec).
+
+  Ran 5 shell commands (ctrl+o to expand)
+
+● Design is clear. Writing the code-level guard first (word limits, path
+  sandbox), then the subagent.
+
+● Write(fin_agent\research_guard.py)
+  ⎿  Wrote 118 lines to fin_agent\research_guard.py
+       1 """Application-level enforcement of the research output limits.
+       2
+       3 Prompts ask for short output; this middleware makes it a guarant
+         ee:
+       4
+       5 * The researcher may only write `/notes/<slug>.md` (virtual path
+          inside the
+       6   sandboxed `outputs/research/` backend). `edit_file` / `delete`
+          are refused so
+       7   a note can only be replaced as a whole, through the validated
+     … +112 lines (~4 KB) (ctrl+o to expand)
+
+● Write(fin_agent\agents\researcher.py)
+  ⎿  Wrote 128 lines to fin_agent\agents\researcher.py
+       1 """The reusable `researcher` subagent (one definition, many brie
+         fs).
+       2
+       3 The orchestrator calls it through the Deep Agents `task` tool on
+         ce per focused
+       4 brief (company + topic). Performance, risk, outlook... are just
+         different briefs,
+       5 not different agents.
+       6
+       7 Detailed findings go to a markdown note inside the sandboxed res
+     … +122 lines (~5 KB) (ctrl+o to expand)
+
+  Read 1 file (ctrl+o to expand)
+
+● Write(tests\test_researcher.py)
+  ⎿  Wrote 108 lines to tests\test_researcher.py
+       1 """Offline tests: scripted fake models + fake Tavily search. No
+         network, no API keys."""
+       2 from langchain_core.language_models.chat_models import BaseChatM
+         odel
+       3 from langchain_core.messages import AIMessage
+       4 from langchain_core.outputs import ChatGeneration, ChatResult
+       5
+       6 from deepagents import create_deep_agent
+       7 from deepagents.backends import FilesystemBackend
+       8
+     … +100 lines (ctrl+o to expand)
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Passing, but the final-file assertion alone wouldn't prove the guard rejected
+  the bad writes (the good write overwrites). I'll assert on the guard's own
+  log.
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● The reusable researcher subagent is built. The full offline suite passes (22
+  tests, scripted fake models, no network or keys). I have not run it against
+  the real OpenAI and Tavily APIs.
+
+  Files
+  - fin_agent/agents/researcher.py: the prompt and the subagent definition.
+    - get_researcher_subagent() returns the spec for the orchestrator's
+      create_deep_agent(subagents=[...]).
+    - build_researcher_agent() runs it standalone for smoke tests.
+    - The model comes from RESEARCHER_MODEL (default gpt-6.1-terra). The tools
+      are tavily_search and think_tool, plus the Deep Agents filesystem tools.
+    - The filesystem backend is sandboxed to outputs/research/.
+  - fin_agent/research_guard.py: a small middleware that enforces the limits in
+    code.
+  - tests/test_researcher.py: the new tests.
+  - .env.example: added an empty RESEARCHER_MODEL= line.
+
+  Workflow
+  The prompt has the researcher pick a task_id slug, search, call think_tool,
+  and search again only if think_tool says SEARCH_AGAIN. It then writes the note
+  and replies with the note path plus 3–6 bullets.
+
+  Limits enforced in code
+  - Note size and shape: write_file is accepted only for /notes/<slug>.md, at
+    most 350 words, with all five sections (Research Question, Key Findings,
+    Financial Facts, Sources, Caveats). Otherwise it returns an error and saves
+    nothing, so the model shortens the note and retries.
+  - Editing: edit_file and delete are disabled for the researcher. A note can
+    only be replaced whole, through the validated write.
+  - Reply size: the reply to the parent is cut to 500 words. The note path comes
+    first in the reply, so it survives the cut.
+  - Search budget: the existing Tavily guard still caps this at 3 calls per
+    task, 3 tasks and 9 calls per request. I didn't change it.
+
+  The test runs the real task flow with a fake orchestrator and researcher. It
+  confirms the over-long note and the edit_file call were rejected, the note was
+  saved at 350 words or fewer, and the 700-word reply came back truncated.
+
+  Choices to check
+  - Notes go to outputs/research/notes/<slug>.md, not directly in
+    outputs/research/. I followed the notes/ example in CLAUDE.md so report.md
+    stays separate, and it's a one-line change if you prefer the flat layout.
+  - The researcher sees the path as /notes/<slug>.md. The orchestrator uses the
+    same backend, so it can read the note at that path.
+  - The task_id is chosen by the model, so a misbehaving model could use a fresh
+    task_id per search. The 9-call request cap still holds, but the per-task
+    limit would not.
+  - The orchestrator's entry point must call start_request() once per user
+    request, or the Tavily budget carries over between requests.
+
+  I haven't run a live smoke test because it spends real API calls. python -m
+  fin_agent.agents.researcher "Research recent revenue growth and profitability
+  for JPMorgan Chase and Bank of America" would do it. It needs OPENAI_API_KEY
+  and TAVILY_API_KEY set, and I can run a value-free presence check first if you
+  approve.
+
+> <ide_opened_file>The user opened the file
+  d:\claude\deepagent-research-poc\outputs\original_request.md in the IDE. This
+  may or may not be related to the current task.</ide_opened_file>
+
+> Add tests for:
+  - subagent execution
+  - research artifact creation
+  - artifact <=350 words
+  - returned result <=500 words
+
+  After implementation, explain:
+  1. how the subagent works
+  2. how filesystem writing is being done
+  3. why the filesystem is useful here
+  4. how the parent agent will later consume these artifacts
+  5. what I should run to verify this
+
+  Read 1 file, ran 1 shell command (ctrl+o to expand)
+
+● I added 7 focused tests to tests/test_researcher.py. All 29 tests in the suite
+  pass. They use scripted fake models and a fake search, so they run offline
+  with no keys. They have not been run against the real APIs.
+
+  ┌─────────────┬───────────────────────────────────────────────────────────┐
+  │ Requirement │                           Test                            │
+  ├─────────────┼───────────────────────────────────────────────────────────┤
+  │ Subagent    │ test_subagent_executes_and_returns_note_path runs search, │
+  │ execution   │  think, write and reply through the parent's task tool.   │
+  ├─────────────┼───────────────────────────────────────────────────────────┤
+  │ Artifact    │ test_research_artifact_is_created_with_required_sections  │
+  │ creation    │ checks the file exists, has all five sections and         │
+  │             │ contains a URL.                                           │
+  ├─────────────┼───────────────────────────────────────────────────────────┤
+  │             │ test_oversized_artifact_is_never_saved shows a 400-word   │
+  │ Artifact    │ write is rejected and no file appears.                    │
+  │ ≤350 words  │ test_artifact_at_limit_is_saved_and_within_350_words      │
+  │             │ shows a note of exactly 350 words is accepted.            │
+  ├─────────────┼───────────────────────────────────────────────────────────┤
+  │             │ test_returned_result_is_capped_at_500_words sends a       │
+  │ Result ≤500 │ 900-word reply and checks it is cut to 500 words with the │
+  │  words      │  note path kept. test_short_result_is_left_untouched      │
+  │             │ checks a short reply passes through unchanged.            │
+  ├─────────────┼───────────────────────────────────────────────────────────┤
+  │ Reusability │ test_same_researcher_is_reusable_for_two_briefs runs one  │
+  │             │ definition on two briefs and gets two separate notes.     │
+  └─────────────┴───────────────────────────────────────────────────────────┘
+
+  1. How the subagent works
+
+  - The parent calls the task tool with subagent_type="researcher" and one
+    self-contained brief.
+  - The researcher runs in its own isolated context, so it sees only that brief.
+  - It follows the prompt in fin_agent/agents/researcher.py:
+    a. Pick a task_id slug.
+    b. Run tavily_search.
+    c. Run think_tool.
+    d. Search again only if think_tool says SEARCH_AGAIN, up to 3 searches.
+    e. Write the note.
+    f. Reply with the note path and a few bullets.
+  - The Tavily guard blocks any call beyond the limits (3 per task, 3 tasks, 9
+    per request).
+  - ResearchGuardMiddleware (fin_agent/research_guard.py) enforces the size
+    limits in code, not just in the prompt.
+
+  2. How filesystem writing is done
+
+  - The agent uses the built-in Deep Agents write_file tool. No custom
+    file-writing code exists.
+  - The backend is FilesystemBackend(root_dir=outputs/research,
+    virtual_mode=True), so the agent sees / as that folder and can't reach .env
+    or the rest of the repo.
+  - /notes/jpm-bac-revenue.md is saved as
+    outputs/research/notes/jpm-bac-revenue.md on disk.
+  - Before each write the middleware checks three things:
+    - Path: it must match /notes/<slug>.md.
+    - Size: the note must be 350 words or fewer.
+    - Sections: it must have all five required sections.
+  - If a check fails, the model gets an error message and nothing is saved, so
+    it shortens the note and retries. edit_file and delete are disabled, so a
+    note can only be replaced whole through that check.
+
+  3. Why the filesystem is useful here
+
+  - Detailed findings with source URLs stay on disk instead of filling the
+    orchestrator's context.
+  - The parent only receives about 250 words per task, so three tasks cost far
+    less context than three full research dumps.
+  - Notes persist and can be inspected, which helps debugging and checking
+    sources.
+  - The report writer can re-read exact figures and URLs later instead of
+    relying on a lossy summary.
+
+  4. How the parent will consume the artifacts
+
+  - Each task result starts with Notes file: /notes/<slug>.md, followed by
+    headline bullets. The orchestrator keeps those paths and bullets in its
+    context.
+  - At synthesis time it calls read_file on each path. The parent shares the
+    same backend, so the paths resolve.
+  - It then writes /report.md, which lands at outputs/research/report.md,
+    keeping the source URLs and caveats from the notes.
+  - This is the next step. It needs the orchestrator prompt to say "collect the
+    paths, then read them", and I haven't built it yet.
+
+  5. What to run to verify
+
+  Offline checks need no keys:
+  .venv\Scripts\python -m pytest -q
+  .venv\Scripts\python -m pytest tests/test_researcher.py -v
+  A real end-to-end run costs OpenAI and Tavily calls and needs both keys set. I
+  haven't run it and won't touch .env, so say so if you want me to do a
+  value-free presence check first:
+  .venv\Scripts\python -m fin_agent.agents.researcher "Research recent revenue
+  growth and profitability for JPMorgan Chase and Bank of America"
+  After that run, check three things:
+  - Search log: at most 3 Tavily call lines.
+  - Note file: outputs/research/notes/*.md exists and has 350 words or fewer. In
+    PowerShell: (Get-Content outputs\research\notes\*.md -Raw -Split
+    '\s+').Count
+  - Printed reply: it starts with Notes file:.
+
+> <ide_opened_file>The user opened the file d:\claude\deepagent-research-poc\ou
+  tputs\research\notes\jpm-bac-revenue-profitability.md in the IDE. This may or
+  may not be related to the current task.</ide_opened_file>
+
+> one change i wan to make. you can increase the hard word limit to 500 words
+  where it is 350 words or less. the final report can have 700 words limit.
+
+  Searched for 1 pattern, ran 1 shell command (ctrl+o to expand)
+
+● I raised the research note limit from 350 to 500 words, and all 29 tests still
+  pass.
+
+  - Note limit: NOTE_MAX_WORDS in research_guard.py
+    (fin_agent/research_guard.py) is now 500. The error message the model sees
+    follows the constant, so it now says "limit is 500". The prompt in
+    researcher.py (fin_agent/agents/researcher.py) now tells the model to aim
+    for about 400 words. The "350 words" mention in the prompt's note-format
+    heading and the middleware docstring both use the constant, so they follow
+    it automatically.
+  - Returned summary: this stays capped at 500 words.
+  - Final report: I added REPORT_MAX_WORDS = 700 in the same file and updated
+    CLAUDE.md to say the report is limited to 700 words. This is not enforced
+    yet because no report writer exists. When the orchestrator's report.md write
+    is built, I'll apply the same kind of check to it.
+  - Tests: the "too long" cases now use NOTE_MAX_WORDS + 50 instead of a fixed
+    400, because a 400-word note would now be accepted.
+  - Rename: I renamed test_artifact_at_limit_is_saved_and_within_350_words to
+    ..._within_note_limit.
+
+> create a architecture.md file for the entire project
+
+  Listed 1 directory (ctrl+o to expand)
+
+● Write(architecture.md)
+  ⎿  Wrote 164 lines to architecture.md
+      1 # Architecture
+      2
+      3 A one-day POC: a **Financial Company Comparison Agent** on LangCh
+        ain Deep Agents.
+      4 Given a request such as *"Compare JPMorgan Chase and Bank of Amer
+        ica on revenue growth,
+      5 profitability, risks and outlook"*, an orchestrator plans the wor
+        k, delegates focused
+      6 research to a reusable `researcher` subagent, keeps detailed find
+        ings on the filesystem,
+     … +158 lines (ctrl+o to expand)
+
+● I created architecture.md at the project root. It covers the whole project and
+  marks each part as [built] or [planned].
+
+  Sections:
+  1. System overview diagram.
+  2. Component table.
+  3. The Tavily search layer.
+  4. The researcher subagent.
+  5. Filesystem and context management.
+  6. The code-enforced limits table.
+  7. The planned orchestrator.
+  8. Configuration variables.
+  9. Testing.
+  10. Design decisions and known limits.
+
+  - Planned parts: the orchestrator, the wiring in main.py, and enforcement of
+    the 700-word report limit are not built yet. The document says so.
+  - README: README.md still says "project scaffold only". Say so if you want me
+    to update it.
+  - Checks: I didn't run any commands for this; the content reflects the code as
+    it stands. The mention of check_tavily.py and the other layout details came
+    from reading the files directly.
+
+> <ide_selection>The user selected the lines 17 to 17 from
+  d:\claude\deepagent-research-poc\architecture.md:
+  original_request.md
+
+  This may or may not be related to the current task.</ide_selection>
+
+> recheck that all the request is getting appended into original_request.md or
+  not
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● No, requests are not appended. Each one overwrites the file.
+
+  - Code: save_original_request in request.py:37 (fin_agent/request.py#L37)
+    calls path.write_text(...), which replaces the file each time. Its docstring
+    says "overwrite any previous one".
+  - Test: test_overwrites_previous_request checks this on purpose. After two
+    saves, only the second question is in the file.
+  - Current file: outputs/original_request.md holds only the latest request
+    ("Compare Microsoft and Alphabet on risks.", saved 2026-11-07T12:11:39).
+  - Git: the file is git-ignored.
+
+  The overwrite looks like a design choice, since the file holds one run's
+  request. If you want a history, there are two ways:
+  1. Append: add a new timestamped section to the same file each time. The
+     latest request would be the last section.
+  2. Archive: keep original_request.md as the latest request and also write each
+     one to a separate timestamped file, e.g.
+     outputs/requests/2026-11-07T12-11-39.md.
+
+  I'd pick option 2, because anything that reads original_request.md later still
+  gets exactly one request. Tell me which you want (or to keep overwriting) and
+  I'll change the code and the test.
+
+> yes implement the option 2
+  Ran 3 shell commands (ctrl+o to expand)
+
+● The save block didn't match my edit (the first replacements applied, this one
+  didn't). I'll fix it directly.
+
+● Update(fin_agent\request.py)
+  ⎿  Added 12 lines, removed 1 line
+      40          if dimensions:
+      41              lines.append(f"- Dimensions: {', '.join(dimensions)
+          }")
+      42  
+      43 +    text = "\n".join(lines) + "\n"                             
+      44      path = Path(path)
+      45      path.parent.mkdir(parents=True, exist_ok=True)
+      45 -    path.write_text("\n".join(lines) + "\n", encoding="utf-8") 
+      46 +    path.write_text(text, encoding="utf-8")                    
+      47 +                                                               
+      48 +    archive_dir = Path(archive_dir) if archive_dir else path.pa
+         +rent / "requests"                                              
+      49 +    archive_dir.mkdir(parents=True, exist_ok=True)             
+      50 +    stamp = now.strftime("%Y-%m-%dT%H-%M-%S")                  
+      51 +    archive = archive_dir / f"{stamp}.md"                      
+      52 +    n = 1                                                      
+      53 +    while archive.exists():  # two requests in the same second:
+         + never overwrite                                               
+      54 +        n += 1                                                 
+      55 +        archive = archive_dir / f"{stamp}_{n}.md"              
+      56 +    archive.write_text(text, encoding="utf-8")                 
+      57      return path
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Every request is now archived. All 30 tests pass.
+
+  - Latest copy: outputs/original_request.md still holds only the most recent
+    request, so anything reading that file sees exactly one.
+  - Archive: each call to save_original_request also writes a new file,
+    outputs/requests/<YYYY-MM-DDTHH-MM-SS>.md. The folder is created
+    automatically.
+  - Same-second requests: a second request in the same second gets a _2, _3…
+    suffix, so an archived file is never overwritten.
+  - Options: archive_dir is an optional parameter. The default is requests/
+    beside the latest file, which is why tests with a temporary path archive
+    inside the temporary folder.
+  - Git: outputs/requests/ is git-ignored, like the other generated outputs.
+  - Test: I added test_every_request_is_archived, which saves three requests in
+    the same second and checks that three distinct files exist. The existing
+    overwrite test still passes.
+
+  The code change is in request.py (fin_agent/request.py). architecture.md
+  doesn't mention the archive yet. I can add a line if you want.
+
+> yes add it in the architecture.md file
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● I added the request archive to architecture.md in three places:
+  - Overview diagram: a second arrow from main.py to
+    outputs/requests/<timestamp>.md.
+  - Components table: the request.py row now says the latest request overwrites
+    original_request.md. It also says a timestamped copy goes to
+    outputs/requests/, never overwritten, with a _2, _3 suffix for same-second
+    requests.
+  - Testing section: the test_request.py line now mentions the archive history
+    check.
+
+  I didn't re-run the tests, since only the markdown file changed.
+
+> Before building the main agent, let's verify the research subagent is
+  actually using the filesystem as externalized context.
+
+  Run one realistic research task.
+
+  I want to see:
+  1. the task being received
+  2. Tavily being used
+  3. the research artifact being created
+  4. the artifact staying within 700 words
+  5. the concise result returned by the subagent
+  6. the location of the saved artifact
+
+  Do not change the architecture.
+
+  If anything is not working, explain the failure before fixing it. Also
+  mention which were the intermediate files created and which is the final
+  report created. Provide the location of the files.
+
+  Give me the exact command I should run.
+
+● Running the standalone researcher on one realistic brief. It loads keys from
+  .env inside the process only; I'm not reading or printing them.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The run finished. Now inspecting what it left on disk.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The filesystem is working as externalized context. The research content is
+  weak, though, and that is a research-quality problem, not a plumbing one. I
+  ran one real task and changed no code.
+
+  Exact command (from the project root, PowerShell, with the venv's Python; it
+  needs both API keys in .env):
+  .\.venv\Scripts\python.exe -m fin_agent.agents.researcher "Research recent
+  revenue growth and profitability for JPMorgan Chase and Bank of America
+  (latest fiscal year and most recent quarter)."
+
+  What you asked to see
+  1. Task received. The brief above went in as the only user message. The
+     researcher picked its own task id, jpm-bac-revenue-profitability. This run
+     was standalone, so there was no parent agent and no task call. The task
+     path is covered by the offline tests.
+  2. Tavily used. Three searches ran, logged as Tavily call 1/9, 2/9 and 3/9
+     (task 1: 1/3, 2/3, 3/3). Calls 2 and 3 carried a gap_reason. think_tool
+     returned SEARCH_AGAIN twice, then STOP_SEARCHING once the 3-search limit
+     was reached.
+  3. Artifact created. It is
+     outputs/research/notes/jpm-bac-revenue-profitability.md, written with
+     write_file, with all five sections and a URL beside each figure.
+  4. Word count. The note is 294 words. The 700 limit you mentioned is for the
+     final report. The note limit is 500, and the 294 words are within both.
+  5. Result returned. It starts with Notes file:
+     /notes/jpm-bac-revenue-profitability.md, then three bullets and one caveat,
+     roughly 90 words. The detail stayed on disk.
+  6. Location. D:\claude\deepagent-research-poc\outputs\research\notes\jpm-bac-r
+     evenue-profitability.md. The agent sees it as
+     /notes/jpm-bac-revenue-profitability.md.
+
+  Files on disk
+  - Final research artifact: the note above, created in this run. It replaced an
+    older note with the same name that was already there, because the model
+    chose the same slug.
+  - Final report: none yet. outputs/research/report.md does not exist because
+    the orchestrator isn't built.
+  - Intermediate files from this run: none. The only other file is
+    outputs/original_request.md, from the 12:11 earlier run; this standalone
+    runner doesn't call save_original_request.
+
+  What is not working well
+  - Weak sources. All three searches returned third-party aggregators (a
+    research index, a company-data page, an earnings preview), and no JPMorgan
+    or Bank of America investor-relations page or SEC filing.
+  - Missing Bank of America figures. The note had no Bank of America numbers and
+    no year-over-year growth for either bank. It said so honestly, flagged the
+    sources as unverified, and flagged an unresolved conflict ($280.34B vs
+    ~$185B JPMorgan revenue). It did not invent anything.
+  - Likely cause. This is probably the generic queries on Tavily's basic search
+    depth with only 4 results, combined with the model's choice of wording. It
+    is not a guard, filesystem or budget failure.
+  - Cosmetic only. The log shows "Request Tavily budget" twice, because the
+    guard logs once when created and again on start_request(). It is harmless.
+
+  Next options: I can tighten the prompt so queries name the exact
+  investor-relations or SEC source, such as "JPMorgan Chase 2025 annual report
+  10-K site:jpmorganchase.com". Alternatively, the orchestrator could pass more
+  specific briefs. The first is a small prompt change; the second comes
+  naturally when we build the orchestrator. Tell me which you prefer.
+
+> yes do the changes and do the testing with some other query not related to
+  JPmorgan.
+
+● Prompt change first: make the query rules explicit and primary-source-first.
+  Nothing else changes.
+
+● Update(fin_agent\agents\researcher.py)
+  ⎿  Added 10 lines, removed 2 lines
+      44  ## Workflow
+      45  1. Pick a task_id: a short lowercase slug for the brief (e.g. "
+          jpm-bac-revenue-profit").
+      46     Use the SAME task_id for every tavily_search call and as the
+           note filename.
+      47 -2. Call tavily_search with one specific query (companies + metr
+         -ic + fiscal period;                                            
+      48 -   prefer investor-relations pages, SEC filings, regulators, th
+         -en Reuters/Bloomberg/FT/WSJ).                                  
+      47 +2. Call tavily_search with ONE narrow query. Query rules:      
+      48 +   - Cover one company per query (never "A and B" together); se
+         +arch the other company separately.                             
+      49 +   - Name the document you want, not the topic: "<Company> four
+         +th quarter <year> earnings                                     
+      50 +     press release revenue net income", "<Company> <year> annua
+         +l report 10-K", "<Company>                                     
+      51 +     investor relations results <quarter> <year>". Include the 
+         +exact fiscal period.                                           
+      52 +   - Primary sources first (company investor-relations page, SE
+         +C filings, regulators), then                                   
+      53 +     Reuters/Bloomberg/FT/WSJ. Avoid vague phrasing like "recen
+         +t results" or "growth comparison".                             
+      54 +   - Do not pack several fiscal periods or metrics into one que
+         +ry.                                                            
+      55 +   - You have at most 3 searches for the whole brief: use them 
+         +for the companies and gaps that                                
+      56 +     matter most (e.g. search 1 company A, search 2 company B, 
+         +search 3 the biggest remaining gap).                           
+      57  3. Call think_tool on the result. Follow its decision.
+      58  4. Search again ONLY if think_tool says SEARCH_AGAIN (an import
+          ant gap or conflicting
+      59     figures). Pass its gap_reason. Never more than 3 searches fo
+          r the brief; usually 1-2.
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● The query change helped a lot, and the artifact checks out. One run isn't a
+  benchmark, but the difference is clear.
+
+  What changed: only the query rules in the researcher prompt, in researcher.py
+  (fin_agent/agents/researcher.py). The rules are:
+  - one company per query
+  - name the document wanted (earnings press release, annual report 10-K)
+  - give the exact fiscal period
+  - primary sources first
+  - spend the 3 searches on company A, company B, then the biggest gap
+
+  The architecture is untouched, and the 30 offline tests still pass.
+
+  Test run: "revenue growth and profitability for Microsoft and Alphabet (latest
+  fiscal year and most recent quarter)". The three searches were:
+  1. Microsoft second quarter fiscal 2026 earnings press release revenue net
+     income
+  2. Alphabet fourth quarter 2025 earnings press release revenue net income
+  3. Microsoft fiscal year 2025 annual report revenue operating income net
+     income
+
+  ┌─────────┬────────────────────┬──────────────────────────────────────────┐
+  │         │   JPMorgan run     │      Microsoft/Alphabet run (after)      │
+  │         │      (before)      │                                          │
+  ├─────────┼────────────────────┼──────────────────────────────────────────┤
+  │         │ 3 third-party      │ microsoft.com investor relations,        │
+  │ Sources │ aggregators plus   │ Alphabet's earnings-release PDF, abc.xyz │
+  │         │ Bloomberg          │  investor page                           │
+  ├─────────┼────────────────────┼──────────────────────────────────────────┤
+  │         │ Packed both banks  │                                          │
+  │ Queries │ and several        │ One company and one document each        │
+  │         │ periods into each  │                                          │
+  ├─────────┼────────────────────┼──────────────────────────────────────────┤
+  │ Note    │ 294 words          │ 334 words (within the 500 limit)         │
+  │ length  │                    │                                          │
+  ├─────────┼────────────────────┼──────────────────────────────────────────┤
+  │         │                    │ Microsoft net income FY2026 $133.7B, up  │
+  │ Figures │ Few, unverified    │ 31%; Alphabet FY2025 revenue $402.8B, up │
+  │         │                    │  15%; Q4 2025 revenue +18%, 31.6%        │
+  │         │                    │ operating margin                         │
+  └─────────┴────────────────────┴──────────────────────────────────────────┘
+
+  I haven't checked these figures against the original filings.
+
+  Artifact: D:\claude\deepagent-research-poc\outputs\research\notes\microsoft-al
+  phabet-growth-profitability.md. It is the only new file; the
+  Microsoft/Alphabet run left no other files, and report.md still doesn't exist.
+  The researcher's reply to the parent was about 100 words, starting with Notes
+  file: /notes/microsoft-alphabet-growth-profitability.md. It also flagged the
+  gaps honestly.
+
+  Remaining gaps, none of them filesystem failures:
+  1. Tier label wrong. The note records its three primary sources as "tool tier:
+     other". source_tier in tavily_search.py (fin_agent/tools/tavily_search.py)
+     only recognises hosts like investor.*, .gov and ir.*. It misses
+     microsoft.com/en-us/investor/..., abc.xyz/investor/... and q4cdn.com (a
+     common investor-relations PDF host). Fixing it is a small change to the URL
+     check, and it also affects result ordering. I'd like to make it.
+  2. Coverage gaps.
+     - Microsoft revenue was not found.
+     - Alphabet's latest periods are unverified. It's November 2026, so quarters
+       after Q4 2025 exist.
+     - Only the 3-search budget limits this. The brief is also broad, so the
+       orchestrator should split it into smaller briefs, for example one per
+       company, within the 3-task limit.
+  3. Dates. "date not given" appears for every source, because Tavily rarely
+     returns published_date for these pages. That is a limit of the data, not a
+     bug.
+
+  Do you want the tier fix?
+
+> <ide_opened_file>The user opened the file d:\claude\deepagent-research-poc\ou
+  tputs\research\notes\microsoft-alphabet-growth-profitability.md in the IDE.
+  This may or may not be related to the current task.</ide_opened_file>
+
+> yes fix the tier and change the 3-search budget limit to 5 searches.
+
+  Searched for 1 pattern, ran 1 shell command (ctrl+o to expand)
+
+● Both changes are in and the offline suite passes (32 tests). I haven't done a
+  live run.
+
+  Tier fix (source_tier in tavily_search.py (fin_agent/tools/tavily_search.py))
+  - A URL is now primary if it is a government or regulator host (.gov, .gov.uk,
+    .europa.eu), or matches one of these new rules:
+    - Investor-relations section: an /investor/, /investors/ or
+      /investor-relations/ section in the first two path segments. That covers
+      microsoft.com/en-us/investor/... and abc.xyz/investor/....
+    - Investor-relations hosting: domains such as q4cdn.com, which Alphabet's
+      earnings PDF uses.
+    - Investor-relations subdomains: investor.* and ir.* hosts, which were
+      already recognised.
+  - A small exclusion list (fool.com, investopedia.com, seekingalpha.com,
+    yahoo.com, tickeron.com) stays other, because those sites have their own
+    /investor/ sections that aren't company pages.
+  - This is a heuristic. A company that hosts its investor page somewhere
+    unusual would still be labelled other.
+  - Primary sources now sort first in search results too, since the tier decides
+    the order.
+
+  Budget: 3 → 5 searches per task
+  - Code: the ceiling is CEILING_CALLS_PER_TASK = 5. The prompt now says at most
+    5 searches, usually 2–4. A search after the first still needs a gap_reason.
+  - Docs and config: I updated .env.example, CLAUDE.md and architecture.md.
+  - Tests: the clamp test now expects 5. A new test checks that exactly 5
+    searches go through and the 6th is blocked. Another test covers the tier
+    rules, including the Microsoft, Alphabet and q4cdn.com URLs from the last
+    run and the fool.com exclusion.
+
+  Two things to check:
+  1. Your .env. If you copied .env.example earlier, it probably has
+     TAVILY_MAX_CALLS_PER_TASK=3. Environment values can only lower the ceiling,
+     so that line would keep the limit at 3. I won't read .env, so please set
+     that value to 5 or delete the line.
+  2. The per-request cap is still 9. I left it because you only asked about the
+     per-task limit. With up to 3 tasks at 5 searches each, the 9-call request
+     cap will bind first. Tasks could get uneven budgets, with the first using
+     5, the second 4 and the third 0. Do you want to raise it, for example to
+     12–15? That's a one-line change.
+
+  If you want to see the tier labels in a real note, a live run costs up to 5
+  Tavily calls. I can do that once the .env line is sorted.
+
+> yes raise the limit
+
+  Searched for 1 pattern, ran 2 shell commands (ctrl+o to expand)
+
+● I raised the per-request search cap from 9 to 15, so three tasks at 5 searches
+  each can all use their full budget. All 32 tests pass.
+
+  - Code: CEILING_CALLS_PER_REQUEST in tavily_search.py
+    (fin_agent/tools/tavily_search.py) is now 15, and the docstrings match.
+  - Config and docs: .env.example now shows the 5 / 3 / 15 ceilings and sets
+    TAVILY_MAX_CALLS_PER_REQUEST=15. CLAUDE.md and architecture.md say 15
+    instead of 9 and 12. In architecture.md I also changed the gap-reason line
+    to "2nd search onward", which was still the old "2nd and 3rd" wording.
+  - Tests: the clamp test now expects (5, 2, 15), and the logging test now
+    expects budget: 15 and call 1/15.
+
+  Check your own .env: if it still has TAVILY_MAX_CALLS_PER_REQUEST=9 or
+  TAVILY_MAX_CALLS_PER_TASK=3, those lower the limits below the new ceilings. I
+  haven't read .env, so please set them to 15 and 5, or delete both lines to use
+  the defaults.
+
+  The live check, python -m fin_agent.tools.check_tavily, refuses to run when
+  the request limit is above its safety cap of 5, as it already did at 9. To use
+  it, set TAVILY_MAX_CALLS_PER_REQUEST=5 in the environment for that run.
+
+> <ide_opened_file>The user opened the file
+  d:\claude\deepagent-research-poc\.env in the IDE. This may or may not be
+  related to the current task.</ide_opened_file>
+
+> okay so now run a different query and check the output quality. Also mention
+  how many sub agents were created and how many calls were made.
+
+● Running a new query on a different sector and topic (risks, not financials).
+  I'm capturing the full log so I can count calls exactly. I'm not touching
+  .env.
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● The run completed with exit code 0. The output quality is good, with two flaws
+  worth fixing. I changed no code this time.
+
+  Counts
+
+  ┌──────────────┬──────────────────────────────────────────────────────────┐
+  │              │                                                          │
+  ├──────────────┼──────────────────────────────────────────────────────────┤
+  │              │ 0. This standalone runner has no parent, so there was    │
+  │ Sub-agents   │ one researcher agent run. In the full system each brief  │
+  │ created      │ becomes one task call, so 3 briefs means 3 researcher    │
+  │              │ runs.                                                    │
+  ├──────────────┼──────────────────────────────────────────────────────────┤
+  │ Tavily       │ 5 of 5 for the task, and 5 of 15 for the request. There  │
+  │ searches     │ were no blocked calls and no cache hits. Searches 2 to 5 │
+  │              │  each carried a specific gap_reason.                     │
+  ├──────────────┼──────────────────────────────────────────────────────────┤
+  │ think_tool   │ 5. The first four said SEARCH_AGAIN and the fifth said   │
+  │ calls        │ STOP_SEARCHING (evidence sufficient).                    │
+  ├──────────────┼──────────────────────────────────────────────────────────┤
+  │ write_file   │ 1. The guard accepted it on the first try, with no       │
+  │ calls        │ rejections or warnings.                                  │
+  ├──────────────┼──────────────────────────────────────────────────────────┤
+  │ Model        │ 12, which is 5 search + 5 think + 1 write + 1 final      │
+  │ (OpenAI)     │ reply.                                                   │
+  │ calls        │                                                          │
+  ├──────────────┼──────────────────────────────────────────────────────────┤
+  │ Tools called │ 11 (5 search + 5 think + 1 write), plus the 12 model     │
+  │  in total    │ calls.                                                   │
+  └──────────────┴──────────────────────────────────────────────────────────┘
+
+  Your .env is not holding the limits down, since all 5 task searches ran.
+
+  Artifact
+  - Location: D:\claude\deepagent-research-poc\outputs\research\notes\tesla-ford
+    -ev-risks.md (virtual path /notes/tesla-ford-ev-risks.md).
+  - Length: 442 words, within both the 500-word note limit and the 700 figure
+    you mentioned.
+  - Intermediate files: none.
+  - Final report: none yet. The orchestrator doesn't exist, so report.md hasn't
+    been created.
+
+  Quality: much better than the JPMorgan run
+  - Sources: the key figures come from Tesla's investor-relations site
+    (ir.tesla.com, 10-K/10-Q), Ford's Q1 2026 press release and presentation,
+    Ford's SEC 10-K, and an IRS page. The tier fix works, since these are all
+    labelled primary.
+  - Figures: Ford Model e lost $777M in Q1 2026 and Ford forecasts a $4.0–4.5B
+    loss for 2026. Tesla's regulatory-credit revenue fell 28% in FY2025 and 36%
+    in Q1 2026. Tesla's Q1 operating margin was 4.2%. The US consumer EV credit
+    ended after 30 Sept 2025. I haven't checked these figures against the
+    filings myself.
+  - Honest caveats: it separates guidance from realized results and notes that
+    Ford's tariff cost is company-wide, not EV-specific.
+  - Structure: all five sections are present and every figure has a source URL.
+
+  Flaws to fix
+  1. Stale "latest" period. Today is 7 Nov 2026, and the note treats Q1 2026
+     (April) as the latest quarter. Q2 and Q3 2026 results should exist by now.
+     The caveat only says later developments "were not comprehensively
+     verified". Fix: have the prompt state today's date, require searching the
+     most recent reported quarter, and flag clearly when that couldn't be
+     confirmed.
+  2. Misleading summary line. The note says the $4.0–4.5B forecast is a Model e
+     loss. The reply to the parent says "Ford forecasts a $4.0 billion–$4.5
+     billion loss for 2026", which reads as a company-wide loss. This matters
+     once the orchestrator writes the report from these summaries. Fix: add a
+     prompt rule that every figure in the reply names its scope.
+
+  Smaller issues
+  - Every source shows "date not given", because Tavily rarely returns dates for
+    these pages.
+  - The Sources section sometimes says "URLs above" instead of repeating them,
+    though the URLs are in Financial Facts.
+  - Tesla's side is thinner than Ford's: no Tesla-specific regulatory items
+    beyond credits and tariffs.
+
+  Both flaws are prompt-only changes. Want me to make them and re-run?
+
+> <ide_opened_file>The user opened the file
+  d:\claude\deepagent-research-poc\fin_agent\agents\researcher.py in the IDE.
+  This may or may not be related to the current task.</ide_opened_file>
+
+> remove the date mentione from the pages
+
+● I'm reading this as: stop writing "date not given" into results and notes.
+  Dates should appear only when a source actually provides one. Let me find
+  where that text comes from.
+
+  Searched for 1 pattern, ran 2 shell commands (ctrl+o to expand)
+
+● I removed "date not given" from both places it came from, and all 33 tests
+  pass. I haven't re-run a live query, so the existing notes in
+  outputs/research/notes/ still contain the old wording until the topic is
+  researched again.
+
+  - Search output: in tavily_search.py (fin_agent/tools/tavily_search.py), the
+    "Date:" line now appears only when Tavily returns a published_date.
+    Otherwise the line is left out, so the model isn't shown a "date not given"
+    placeholder to copy.
+  - Researcher prompt: in researcher.py (fin_agent/agents/researcher.py), the
+    instructions say to add a date only if the search result gave one. They also
+    tell it not to write "date not given" or guess a date. I added one more
+    instruction while I was there: repeat each URL in the Sources section
+    instead of writing "URLs above".
+  - Test: the new test test_date_line_only_when_source_provides_one checks that
+    a dated result shows its date and an undated one shows no date line.
+
+  This follows the CLAUDE.md rule: keep the date where it is available, and say
+  nothing when it isn't. It also means the notes will no longer mark where a
+  date is missing. Staleness will rely on the Caveats section, which reinforces
+  the earlier flaw about the "latest" quarter being out of date.
+
+  I read "the date mention" as the "date not given" text. If you meant removing
+  dates entirely, including real ones such as "June 13, 2026", tell me and I'll
+  change it.
+
+> <ide_opened_file>The user opened the file d:\claude\deepagent-research-poc\ou
+  tputs\research\notes\tesla-ford-ev-risks.md in the IDE. This may or may not
+  be related to the current task.</ide_opened_file>
+
+> Now inspect the context flow between the main Deep Agent and the research
+  subagent.
+
+  I want to make sure we are not accidentally passing the entire research
+  conversation back and forth.
+
+  Explain where necessary, adjust the implementation so that:
+
+  Main Deep Agent
+      ↓
+  focused research task
+      ↓
+  Research Subagent
+      ↓
+  Tavily / think
+      ↓
+  research markdown artifact
+      ↓
+  concise result + artifact reference
+      ↓
+  Main Deep Agent
+
+  The parent should receive the concise result and know where the detailed
+  artifact was saved.
+● I'll read how Deep Agents actually passes context through the task tool before
+  judging anything.
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● The library behaviour is clear. Before changing anything, I'll measure what
+  actually crosses the boundary in both directions, using the scripted harness.
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● The parent receives only one final task message, while the subagent's search
+  dump and notes remain on disk. I'll make the artifact reference a code
+  guarantee and pin the context mode explicitly. · summary
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Now tests that lock the context flow in place.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● My heredoc turned the \n escapes into real newlines. I'll fix those two lines.
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● Update(fin_agent\research_guard.py)
+  ⎿  Added 1 line, removed 2 lines
+      69  
+      70  def with_note_reference(text: str, path: str | None) -> str:
+      71      """Make the first line `Notes file: <path>`, dropping any m
+          odel-written variant."""
+      72 -    body = "                                                   
+      73 -".join(l for l in text.splitlines() if not l.strip().lower().st
+         -artswith(NOTES_FILE_PREFIX.lower()))                           
+      72 +    body = "\n".join(l for l in text.splitlines() if not l.stri
+         +p().lower().startswith(NOTES_FILE_PREFIX.lower()))             
+      73      head = (
+      74          f"{NOTES_FILE_PREFIX} {path}"
+      75          if path
+
+● Update(fin_agent\research_guard.py)
+  ⎿  Added 1 line, removed 2 lines
+      75          if path
+      76          else f"{NOTES_FILE_PREFIX} NOT SAVED (no research note 
+          was written; treat the findings below as unverified)"
+      77      )
+      78 -    return f"{head}                                            
+      79 -{body.strip()}"                                                
+      78 +    return f"{head}\n{body.strip()}"                           
+      79  
+      80  
+      81  def missing_sections(markdown: str) -> list[str]:
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● The context flow was already isolated by design, and I found one real gap and
+  closed it. All 39 tests pass (6 new); I haven't done a live run this round.
+
+  What I measured (scripted harness against the real Deep Agents task tool, with
+  marker strings in the search results and note):
+
+  ┌──────────────┬─────────────────────────────────────────────────┬────────┐
+  │  Direction   │                  What crosses                   │ Result │
+  ├──────────────┼─────────────────────────────────────────────────┼────────┤
+  │ Parent →     │ Only the description string. The researcher's   │        │
+  │ researcher   │ first model call saw its system prompt plus the │ Clean  │
+  │              │  brief, with no user request, history or todos. │        │
+  ├──────────────┼─────────────────────────────────────────────────┼────────┤
+  │ Researcher → │ One tool message holding the researcher's final │        │
+  │  parent      │  message. The only state key returned is        │ Clean  │
+  │              │ messages.                                       │        │
+  ├──────────────┼─────────────────────────────────────────────────┼────────┤
+  │              │ The search dump and the note body never         │        │
+  │ Detail       │ appeared in the parent's messages. The note     │ Clean  │
+  │              │ body exists only on disk.                       │        │
+  └──────────────┴─────────────────────────────────────────────────┴────────┘
+
+  The library does this by default. In its default isolated mode the child gets
+  [HumanMessage(description)], and only the last non-empty AI message text comes
+  back.
+
+  The gap: the Notes file: line depended on the model following the prompt. In
+  my probe the model replied with no path at all, and the parent got findings
+  with no artifact reference. A model could also cite a wrong or made-up path.
+
+  Changes
+  1. Code-guaranteed reference. In research_guard.py
+     (fin_agent/research_guard.py), the researcher's final message is normalised
+     after the run. Its first line is always Notes file: <path>, taken from the
+     write_file call that actually succeeded. A model-written path is replaced.
+     If no note was saved, the line says Notes file: NOT SAVED (no research
+     note was written; treat the findings below as unverified). The 500-word cap
+     is applied after this, so the reference always survives truncation.
+  2. Explicit isolation. The spec in researcher.py
+     (fin_agent/agents/researcher.py) now sets "mode": "isolated". This is the
+     library default, so it only protects against a future default change.
+  3. Docs. architecture.md has a new "Context flow" subsection with a diagram,
+     and the guard table has a row for the code-set reference.
+
+  New tests in tests/test_researcher.py:
+  - The researcher sees only the brief.
+  - The parent gets no search dump and no note body, only messages, and one task
+    message.
+  - The reference is added when the model omits it.
+  - A wrong model-written path is replaced.
+  - NOT SAVED appears when nothing was written.
+  - The spec is isolated.
+
+  What this doesn't cover
+  - The brief size is chosen by the parent model. A parent could paste a lot of
+    text into description, and the child would see all of it. That belongs in
+    the orchestrator prompt (short, self-contained briefs, no pasted findings),
+    which we haven't built yet.
+  - Orchestrator calls to read_file are the intended way to pull detail back in.
+    Each read adds up to a full note (500 words) to the parent's context, so
+    the orchestrator should read only the notes it needs.
+
+  Want a live run to confirm the guaranteed first line on a real model response?
+
+> yes run a live run and use a different question
+
+● New question, new sector and topic type (outlook, semiconductors). Capturing
+  the full log again so I can verify the first line and count calls.
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● The live run worked, and the output quality is good. I changed no code this
+  round.
+
+  Run: "business outlook and management guidance for Nvidia and AMD, focusing on
+  data-center AI demand and the next reported quarter". The exit code was 0.
+
+  Counts
+
+  ┌───────────────┬─────────────────────────────────────────────────────────┐
+  │               │                                                         │
+  ├───────────────┼─────────────────────────────────────────────────────────┤
+  │ Sub-agents    │ 0. This is the standalone runner, so there is one       │
+  │ created       │ researcher agent run and no parent. Through the         │
+  │               │ orchestrator, each brief would be one task call.        │
+  ├───────────────┼─────────────────────────────────────────────────────────┤
+  │ Tavily        │ 5 of 5 for the task, 5 of 15 for the request. There     │
+  │ searches      │ were no blocked calls and no cache hits.                │
+  ├───────────────┼─────────────────────────────────────────────────────────┤
+  │ think_tool    │ 5 (four SEARCH_AGAIN, then STOP_SEARCHING).             │
+  │ calls         │                                                         │
+  ├───────────────┼─────────────────────────────────────────────────────────┤
+  │ write_file    │ 1, accepted first time with no guard warnings.          │
+  │ calls         │                                                         │
+  ├───────────────┼─────────────────────────────────────────────────────────┤
+  │ Model         │                                                         │
+  │ (OpenAI)      │ 12.                                                     │
+  │ calls         │                                                         │
+  └───────────────┴─────────────────────────────────────────────────────────┘
+
+  Artifact: D:\claude\deepagent-research-poc\outputs\research\notes\nvidia-amd-a
+  i-outlook.md. It is 327 words, within the 500-word note limit and the 700
+  figure. It is the only new file. There are no intermediate files and no
+  report.md.
+
+  Context flow:
+  - Reply: the parent-facing reply was about 150 words, and its first line was
+    Notes file: /notes/nvidia-amd-ai-outlook.md.
+  - Blank line: the model normally puts a blank line after that line, and this
+    reply has none. That suggests the guard rebuilt the line itself, but I can't
+    prove it from this log, since the guard only logs warnings.
+  - Detail on disk: all five searches' raw results and the full note stayed out
+    of the reply. The detail is on disk, as designed.
+
+  Quality
+  - Good:
+    - Staleness: the first search targeted an older quarter. Its own gap_reason
+      then said "later-quarter references suggest the initial requested release
+      may be outdated", and it searched forward. It found AMD's Q3 2026 release
+      (3 Nov 2026) and Nvidia's FY2027 Q2 release.
+    - Primary sources: ir.amd.com and nvidianews.nvidia.com for the main
+      figures.
+    - Figures:
+      - Nvidia: data-center revenue $89.0B (+117%) and a Q3 guide of $108.0B
+        ±2%, assuming no China data-center compute revenue.
+      - AMD: data-center revenue +97%, with a Q4 guide of about $17B.
+    - Arithmetic: the derived growth figures check out (108/96.2 ≈ +12%, 17/13.4
+      ≈ +27%).
+    - Scope in the summary: the AMD guidance is labelled as secondary coverage,
+      and the periods are flagged as different between the two companies (not
+      like-for-like). This is the scope-labelling flaw from last time, now
+      handled.
+    - Dates: the date appears only for AMD's release, and "date not given"
+      appears nowhere.
+  - Weak:
+    - Secondary AMD guidance. The AMD Q4 guide and the $8.5B data-center figure
+      come only from stocktitan.net. The note says the primary-source excerpts
+      didn't confirm them.
+    - Secondary sources in Key Findings. The Nvidia comments on supply
+      constraints and the Vera Rubin ramp come from Yahoo Finance and
+      AlphaSense. They carry URLs but are not backed by a primary source.
+    - No Nvidia Q3 FY2027 results. The note says it couldn't find them. That is
+      plausibly correct, since Nvidia usually reports in late November, but the
+      search didn't confirm it.
+
+  Across the four live runs the pattern is consistent. Primary sources and
+  honest caveats are now reliable; the remaining weak spot is a number that only
+  appears in secondary coverage, which the research flags rather than hides.
+  That is probably the right place to stop for a POC.
+
+  Next step: the orchestrator. It would split a request into briefs, delegate to
+  researcher through task, read the notes, and write report.md with the
+  700-word limit. Should I start on that?
+
+> <ide_opened_file>The user opened the file d:\claude\deepagent-research-poc\ou
+  tputs\research\notes\nvidia-amd-ai-outlook.md in the IDE. This may or may not
+  be related to the current task.</ide_opened_file>
+
+> before this work on the below task:
+
+  Do not build a custom context-management framework.
+
+  The parent should receive the concise result and know where the detailed
+  artifact was saved.
+  Add enough logging or testing to demonstrate what information is passed
+  between the parent and child.
+
+  Afterward explain the context flow.
+
+● I'll keep this deliberately small: two log lines in the existing middleware,
+  one on the way in and one on the way out, and no new abstractions. First,
+  reading the current guard so the log goes in the right place.
+
+  Read 1 file, ran 1 shell command (ctrl+o to expand)
+
+● The failure is in my test's filter, not the code: the prefix RESEARCHER ->
+  PARENT | reply  also matches the reply text: line. I'll tighten it.
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● I added logging and one test to show what moves between the parent and the
+  researcher. There is no new framework, and all 40 tests pass.
+
+  What I added
+  - Logging: research_guard.py (fin_agent/research_guard.py) now has two log
+    lines (logger fin_agent.context, INFO) inside the existing middleware.
+    - Handoff: one line when the parent hands over the brief, giving its size
+      and how many messages the researcher received.
+    - Return: one line when the researcher returns, giving the reply size, the
+      note path and size, and how much stayed behind.
+    - Existing guard: the NOTES_FILE_PREFIX first-line guarantee from last round
+      stays. It is about 20 lines inside the same guard.
+  - Test: test_context_handoff_is_logged runs through the real task tool and
+    asserts both lines. It also checks that the raw search text and note body
+    never appear in the log, and that the logged reply is what the parent
+    actually received.
+  - Docs: one line in architecture.md says the logging is plain logging, not a
+    framework.
+  - Live runs: python -m fin_agent.agents.researcher "<brief>" already runs at
+    INFO, so these lines appear in live runs too. I haven't done a new live run.
+
+  The test run logs these lines:
+  PARENT -> RESEARCHER | brief 5 words, 1 message(s) received | 'BRIEF: research
+  X for JPM'
+  RESEARCHER -> PARENT | reply 8 words | note=/notes/jpm-bac-revenue.md (21
+  words, stays on disk) | kept out of parent: 8 messages, 3 tool results (1
+  searches), 871 chars
+  RESEARCHER -> PARENT | reply text: 'Notes file: /notes/jpm-bac-revenue.md -
+  Revenue up 5% (sec.gov)'
+
+  The context flow
+
+  Main Deep Agent
+    │  task(description = focused brief, subagent_type = "researcher")
+    ▼
+  Researcher (isolated)  ── sees ONLY: its system prompt + the brief
+    │   tavily_search ─▶ results ─┐
+    │   think_tool    ─▶ reflection ├─ all of this lives in the researcher's own
+  context
+    │   write_file ──▶ outputs/research/notes/<slug>.md (full detail, source
+  URLs) ◀── on disk
+    ▼
+  final message: "Notes file: /notes/<slug>.md" + short summary (≤500 words)
+    │
+    ▼
+  Main Deep Agent  ── receives: ONE tool result with that text
+                      keeps: summary + path.  Reads the note with read_file only
+  when it needs the detail.
+
+  What goes down (parent → child)
+  - Only the brief text. The child doesn't see the user's original request, the
+    parent's plan, or earlier research results. If the parent wants the child to
+    know something, the parent must write it into the brief.
+
+  What goes up (child → parent)
+  - Only the child's last message. The raw search results, the think_tool output
+    and the note body all stay behind. In the test log, 8 messages and 871
+    characters of tool output stayed in the child, and the parent received an
+    8-word reply.
+  - The reply's first line is Notes file: <path>, so the parent knows where the
+    detail is. That line is checked against the file the child actually saved,
+    not just what the model claimed, and NOT SAVED appears if nothing was
+    written.
+
+  Where the detail lives
+  - On disk, in outputs/research/notes/. The parent only reads it when it needs
+    exact figures or source URLs, which is at synthesis time. A parent that
+    reads every note would pay the cost of the full note in its own context, but
+    that is a deliberate choice then.
+
+  What is Deep Agents' own behaviour and what is ours
+  - Isolation (brief down, final message up) is the library's behaviour; we
+    pinned it with "mode": "isolated" and tested it.
+  - Ours are only the note file, the path line and the size limits, the last two
+    enforced in the existing guard.
+
+  One thing to watch: the brief size is chosen by the parent model, so a parent
+  could paste a lot of text down. The brief N words log line makes that visible.
+  The orchestrator prompt should tell the parent to keep briefs short and
+  self-contained.
+
+  I'll start on the orchestrator next, unless you want something else first.

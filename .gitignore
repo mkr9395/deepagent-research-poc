@@ -26,3 +26,6 @@ outputs/research/*
 # Saved user request (generated per run)
 outputs/original_request.md
 outputs/requests/
+
+# Final report (generated per run)
+outputs/final_report.md
