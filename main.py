@@ -13,7 +13,7 @@ from importlib import metadata
 
 from dotenv import load_dotenv
 
-from fin_agent.agents.orchestrator import REPORT_PATH, build_orchestrator
+from fin_agent.agents.orchestrator import build_orchestrator
 from fin_agent.agents.researcher import get_backend, RESEARCH_DIR
 from fin_agent.request import save_original_request
 from fin_agent.tools.tavily_search import start_request
@@ -41,10 +41,10 @@ def check() -> int:
 
 
 def reset_run_artifacts() -> None:
-    """Start each run clean so the orchestrator can never read stale notes or an old report."""
+    """Start each run with empty notes so the orchestrator can never read stale ones.
+    Final reports are named per company pair and are never deleted."""
     for note in (RESEARCH_DIR / "notes").glob("*.md"):
         note.unlink()
-    REPORT_PATH.unlink(missing_ok=True)
 
 
 def run(query: str) -> int:
@@ -62,8 +62,13 @@ def run(query: str) -> int:
         config={"recursion_limit": 100},
     )
     print("\n" + result["messages"][-1].text)
-    if REPORT_PATH.is_file():
-        print(f"\nFinal report: {REPORT_PATH}")
+    saved = [
+        m.text.split(" to ", 1)[1].rsplit(" (", 1)[0]
+        for m in result["messages"]
+        if getattr(m, "name", None) == "save_final_report" and m.text.startswith("Saved final report to ")
+    ]
+    if saved:
+        print(f"\nFinal report: {saved[-1]}")
         return 0
     print("\nNo final report was saved.")
     return 1
