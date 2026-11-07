@@ -4,13 +4,13 @@ The limits live in code (`TavilyGuard`), not in prompts: an over-eager agent
 simply gets a "blocked" message back instead of a Tavily call.
 
 Limits (env-configurable, clamped to the hard ceilings below):
-  TAVILY_MAX_CALLS_PER_TASK     searches per research task      (ceiling 3)
+  TAVILY_MAX_CALLS_PER_TASK     searches per research task      (ceiling 5)
   TAVILY_MAX_RESEARCH_TASKS     research tasks per user request (ceiling 3)
-  TAVILY_MAX_CALLS_PER_REQUEST  searches per user request       (ceiling 9)
+  TAVILY_MAX_CALLS_PER_REQUEST  searches per user request       (ceiling 15)
 
 A "research task" is identified by the `task_id` the agent passes to the tool
 (e.g. "msft-revenue"). The first search of a task is free of conditions; the
-2nd and 3rd must carry a `gap_reason` explaining the gap/conflict.
+2nd onward must carry a `gap_reason` explaining the gap/conflict.
 
 The API key is read from the environment only and is never logged or returned.
 """
@@ -29,9 +29,9 @@ from langchain_core.tools import tool
 logger = logging.getLogger("fin_agent.tavily")
 
 # Hard ceilings: env vars can lower these, never raise them.
-CEILING_CALLS_PER_TASK = 3
+CEILING_CALLS_PER_TASK = 5
 CEILING_RESEARCH_TASKS = 3
-CEILING_CALLS_PER_REQUEST = 9
+CEILING_CALLS_PER_REQUEST = 15
 
 MAX_RESULTS = 4  # CLAUDE.md: 3-5 results
 SNIPPET_CHARS = 600  # no raw page dumps
@@ -43,6 +43,11 @@ REPUTABLE_PRESS = {
     "barrons.com", "marketwatch.com", "morningstar.com", "economist.com",
     "apnews.com", "fortune.com",
 }
+# Investor-relations CDN/hosting domains used by many companies for filings and releases.
+IR_HOSTING = {"q4cdn.com", "q4web.com", "investorroom.com"}
+# Sites with an /investor/ section that is NOT the company's own IR page.
+NOT_PRIMARY = {"fool.com", "investopedia.com", "seekingalpha.com", "yahoo.com", "tickeron.com"}
+_IR_SEGMENTS = {"investor", "investors", "investor-relations", "investorrelations", "ir"}
 EXCLUDED_DOMAINS = [
     "reddit.com", "quora.com", "pinterest.com", "facebook.com",
     "x.com", "twitter.com", "tiktok.com", "youtube.com",
@@ -78,18 +83,33 @@ def load_limits() -> Limits:
     )
 
 
+def _host_in(host: str, domains: set[str]) -> bool:
+    return any(host == d or host.endswith("." + d) for d in domains)
+
+
 def source_tier(url: str) -> str:
-    """Classify a URL: primary (IR / SEC / regulators), reputable press, or other."""
-    host = (urlparse(url).hostname or "").lower()
+    """Classify a URL: primary (company IR / SEC / regulators), reputable press, or other.
+
+    Heuristic: primary = government/regulator hosts, `investor.`/`ir.` hosts, IR hosting
+    CDNs (e.g. q4cdn.com), or an `/investor(s)/` section within the first two path
+    segments (e.g. microsoft.com/en-us/investor/..., abc.xyz/investor/...).
+    """
+    parsed = urlparse(url)
+    host = (parsed.hostname or "").lower()
     if host.startswith("www."):
         host = host[4:]
+    if _host_in(host, NOT_PRIMARY):
+        return "other"
+    segments = [x for x in parsed.path.lower().split("/") if x][:2]
     if (
         host.endswith(".gov") or host.endswith(".gov.uk") or host.endswith(".europa.eu")
         or host.startswith(("investor.", "investors.", "ir."))
         or "investor" in host.split(".")[0]
+        or _host_in(host, IR_HOSTING)
+        or any(seg in _IR_SEGMENTS for seg in segments)
     ):
         return "primary"
-    if any(host == d or host.endswith("." + d) for d in REPUTABLE_PRESS):
+    if _host_in(host, REPUTABLE_PRESS):
         return "reputable"
     return "other"
 
@@ -211,13 +231,13 @@ class TavilyGuard:
         for i, r in enumerate(results, 1):
             url = r.get("url", "")
             snippet = " ".join((r.get("content") or "").split())[:SNIPPET_CHARS]
-            date = r.get("published_date") or "date not given"
             lines += [
                 f"{i}. {r.get('title', '(untitled)')} [{source_tier(url)}]",
                 f"   URL: {url}",
-                f"   Date: {date}",
-                f"   {snippet}",
             ]
+            if r.get("published_date"):  # only shown when the source provides one
+                lines.append(f"   Date: {r['published_date']}")
+            lines.append(f"   {snippet}")
         return "\n".join(lines)
 
     @staticmethod
@@ -269,7 +289,7 @@ def tavily_search(query: str, task_id: str, gap_reason: str = "") -> str:
         gap_reason: Required from the 2nd search of a task onward: the important
             information gap or conflicting figures the extra search resolves.
 
-    Budget is enforced in code: 3 searches/task, 3 tasks and 9 searches per
+    Budget is enforced in code: 5 searches/task, 3 tasks and 15 searches per
     request at most. Results carry a source tier (primary / reputable / other),
     URL and date. If the response starts with [TAVILY_BLOCKED], do not retry;
     work from the evidence you already have and flag gaps as unverified.

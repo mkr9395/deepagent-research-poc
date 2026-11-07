@@ -39,7 +39,7 @@ def test_ceilings_cap_env(monkeypatch):
     monkeypatch.setenv("TAVILY_MAX_RESEARCH_TASKS", "2")
     monkeypatch.setenv("TAVILY_MAX_CALLS_PER_REQUEST", "junk")
     lim = ts.load_limits()
-    assert (lim.calls_per_task, lim.research_tasks, lim.calls_per_request) == (3, 2, 9)
+    assert (lim.calls_per_task, lim.research_tasks, lim.calls_per_request) == (5, 2, 15)
 
 
 def test_request_budget_blocks_and_stops_calling_tavily():
@@ -111,9 +111,9 @@ def test_logging_and_no_key_leak(caplog, monkeypatch):
     with caplog.at_level(logging.INFO, logger="fin_agent.tavily"):
         g = TavilyGuard(Limits(), search_fn=boom)
         out = g.search("q", "t1")
-    assert "Request Tavily budget: 9" in caplog.text
+    assert "Request Tavily budget: 15" in caplog.text
     assert "Research task 1" in caplog.text
-    assert "Tavily call 1/9" in caplog.text
+    assert "Tavily call 1/15" in caplog.text
     assert FAKE_KEY not in caplog.text and FAKE_KEY not in out
     assert "TAVILY_ERROR" in out and g.total_calls == 1  # failed attempt still counted
 
@@ -123,3 +123,37 @@ def test_langchain_tool_is_wired(monkeypatch):
     monkeypatch.setattr(ts, "_guard", TavilyGuard(Limits(), search_fn=fake))
     out = ts.tavily_search.invoke({"query": "q", "task_id": "t1"})
     assert "sec.gov" in out and fake.calls == ["q"]
+
+
+def test_default_task_ceiling_is_five():
+    assert ts.CEILING_CALLS_PER_TASK == 5 and Limits().calls_per_task == 5
+    g, fake = make(Limits(calls_per_task=5, research_tasks=3, calls_per_request=15))
+    g.search("q1", "t1")
+    for i in range(2, 6):
+        assert "[TAVILY_BLOCKED" not in g.search(f"q{i}", "t1", GAP)
+    assert "TASK_BUDGET_EXHAUSTED" in g.search("q6", "t1", GAP)
+    assert len(fake.calls) == 5
+
+
+def test_source_tier_recognises_company_ir_pages():
+    t = ts.source_tier
+    assert t("https://www.microsoft.com/en-us/investor/earnings/fy-2026-q4/press-release-webcast") == "primary"
+    assert t("https://abc.xyz/investor/events/event-details/2026/x/default.aspx") == "primary"
+    assert t("https://s206.q4cdn.com/479360582/files/doc_financials/2025/q4/x.pdf") == "primary"
+    assert t("https://investor.apple.com/x") == "primary"
+    assert t("https://www.sec.gov/Archives/edgar/x") == "primary"
+    assert t("https://www.reuters.com/markets/x") == "reputable"
+    assert t("https://www.fool.com/investor/2026/x") == "other"   # /investor/ but not company IR
+    assert t("https://ttvalueinvesting.com/research") == "other"
+    assert t("https://example.com/blog/investor-tips") == "other"
+
+
+def test_date_line_only_when_source_provides_one():
+    def search(q):
+        return {"query": q, "results": [
+            {"title": "A", "url": "https://sec.gov/a", "content": "x", "published_date": "2026-04-22"},
+            {"title": "B", "url": "https://randomblog.com/b", "content": "y"},
+        ]}
+    out = TavilyGuard(Limits(), search_fn=search).search("q", "t1")
+    assert "Date: 2026-04-22" in out
+    assert "date not given" not in out and out.count("Date:") == 1
