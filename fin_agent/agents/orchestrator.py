@@ -11,10 +11,12 @@ One orchestrator built with `create_deep_agent`. It relies on the framework for:
                           (our custom orchestrator tools; verification is a tool, not an agent)
 
 The final report is written OUTSIDE the sandboxed research backend by
-`save_final_report`, which only requires a non-empty report with source URLs (no word limit).
+`save_final_report`, which requires a non-empty report of at most REPORT_MAX_WORDS words with source URLs.
 """
 from __future__ import annotations
 
+import asyncio
+import contextvars
 import logging
 import os
 import re
@@ -29,14 +31,18 @@ from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
 from fin_agent.agents.researcher import get_backend, get_researcher_subagent
+from fin_agent.models import build_model
 from fin_agent.report_check import check_report, request_question
-from fin_agent.research_guard import NOTES_DIR, NOTE_MAX_WORDS, count_words
+from fin_agent.research_guard import (
+    NOTES_DIR, NOTE_MAX_WORDS, TASK_CLOCK, TaskCancelled, TaskClock, count_words, task_timeout_seconds,
+)
 
 logger = logging.getLogger("fin_agent.orchestrator")
 synth_log = logging.getLogger("fin_agent.synthesis")  # artifact reads during synthesis
 
 DEFAULT_MODEL = "gpt-6.1-terra"
 REPORTS_DIR = Path(__file__).resolve().parents[2] / "outputs"
+REPORT_MAX_WORDS = 900  # hard cap on the final report (enforced in save_final_report)
 MAX_RESEARCH_TASKS = 3  # mirrors the Tavily guard: 3 tasks x 5 searches = 15 per request
 
 ORCHESTRATOR_PROMPT = f"""\
@@ -85,6 +91,12 @@ You never search the web yourself.
    Only include the topics this task actually covers.
 5. COLLECT. Each researcher returns a short summary and a `Notes file:` path. Keep only
    those (summary + path). If a task returns `NOT SAVED`, treat its findings as unverified.
+   Each task has a time limit (enforced in code). If a task returns `NOT GENERATED - TIME LIMIT
+   EXCEEDED`, do NOT retry it: carry on with the notes the other tasks produced and write the
+   report from those. The report must state plainly (Executive Summary and Evidence gaps, using
+   the words "time limit") which topic was not researched because its research task exceeded
+   the time limit, and must not fill that gap from memory. `save_final_report` is refused
+   until the report says so. This applies even if only one task, or none, produced a note.
 6. READ. At synthesis time call read_file on EVERY notes file returned by the researchers
    (paths start with {NOTES_DIR}/). The summaries are only pointers; the notes are the
    evidence. `save_final_report` is refused until every produced note has been read. Do not
@@ -102,8 +114,9 @@ You never search the web yourself.
    dimension is covered or explicitly marked as a gap. If an important gap remains AND the
    task budget allows, call submit_research_plan again with just the follow-up task, then
    delegate it; otherwise state the gap.
-9. SAVE. Call save_final_report with the full markdown. It is rejected only if it is empty or
-   has no source URLs. The report has no word limit.
+9. SAVE. Call save_final_report with the full markdown. It is rejected if it is empty, has no
+   source URLs, or is longer than {REPORT_MAX_WORDS} words (all text counts: tables, sources,
+   headings). If rejected for length, cut it (do not split it) and save again.
 10. VERIFY. Call verify_final_report. It re-reads the saved report and the original request
    artifact and checks: every requested company is covered; the requested financial factors,
    risks and outlook are addressed for each company; source URLs are present; obvious
@@ -116,9 +129,10 @@ You never search the web yourself.
    which gaps remain.
 
 ## The final report
-It is the deliverable, so it must be fuller than any single research note (notes are short
-evidence; the report is the analysis built on all of them - typically ~800-1500 words, as
-long as the evidence supports and no longer). It must answer the user's actual question and
+It is the deliverable: the analysis built on all the notes, written to {REPORT_MAX_WORDS} words MAX
+(enforced in code; aim for ~750). That is tight, so be dense: figures and differences, not
+narration; one short paragraph or 2-3 bullets per company per dimension; a compact table; a
+very short evidence-gaps list; no repeated caveats. It must answer the user's actual question and
 nothing else: leave out research that does not bear on a requested dimension.
 
 It must COMPARE, not summarize each company in isolation. For every requested dimension:
@@ -168,6 +182,14 @@ def validate_report(markdown: str) -> str | None:
         return "Error: the report is empty. Nothing was saved. Write the full comparison report."
     if "http" not in markdown:
         return "Error: the report has no source URLs. Keep the source URL next to each figure. Nothing was saved."
+    words = count_words(markdown)
+    if words > REPORT_MAX_WORDS:
+        return (
+            f"Error: the report is {words} words; the limit is {REPORT_MAX_WORDS}. Nothing was saved. "
+            f"Cut at least {words - REPORT_MAX_WORDS} words (shorten prose, merge bullets, drop minor facts; "
+            "keep every source URL, the key-differences statements and the evidence-gaps list) and call "
+            "save_final_report again with the full shortened report."
+        )
     return None
 
 
@@ -192,7 +214,7 @@ def make_report_tools(
     def save_final_report(markdown: str) -> str:
         """Save the final comparison report (markdown) as the run's deliverable.
 
-        No word limit; must be non-empty and keep source URLs.
+        At most 900 words (enforced); must be non-empty and keep source URLs.
         Saved as outputs/<companies>_final_report.md; calling it again in the same run
         overwrites that run's previous version.
         """
@@ -265,6 +287,7 @@ class ResearchPlanner:
         self.plan: dict | None = None
         self.delegated_total = 0  # researcher tasks started this request (never reset)
         self.delegated_in_plan = 0
+        self.timed_out: list[str] = []  # briefs of researcher tasks stopped by the time limit
         self._lock = threading.Lock()
         self.submit_research_plan = self._make_tool()
 
@@ -365,8 +388,9 @@ class OrchestratorGuardMiddleware(AgentMiddleware):
     be written from the short summaries alone.
     """
 
-    def __init__(self, planner: ResearchPlanner):
+    def __init__(self, planner: ResearchPlanner, timeout: float | None = None):
         self.planner = planner
+        self.timeout = task_timeout_seconds() if timeout is None else timeout  # seconds per researcher task
         self.produced: list[str] = []  # note paths announced by researcher results
         self.read: dict[str, int] = {}  # note path -> words the orchestrator read
 
@@ -382,7 +406,15 @@ class OrchestratorGuardMiddleware(AgentMiddleware):
             error = self.planner.allow_delegation()
         elif call["name"] == "save_final_report":
             unread = [p for p in self.produced if p not in self.read]
-            if unread:
+            report = str(call.get("args", {}).get("markdown", "")).lower()
+            if self.planner.timed_out and "time limit" not in report:
+                error = (
+                    "Error: a research task exceeded the time limit and was not generated: "
+                    f"{self.planner.timed_out}. The report must say so explicitly (use the words "
+                    "'time limit') in the Executive Summary and the Evidence gaps section, and mark "
+                    "the affected dimension as not researched. Nothing was saved."
+                )
+            elif unread:
                 error = (
                     f"Error: read these research notes with read_file before saving the report: "
                     f"{unread}. The report must be synthesized from the notes, not the summaries."
@@ -424,19 +456,74 @@ class OrchestratorGuardMiddleware(AgentMiddleware):
                     len(set(self.read) & set(self.produced)), len(self.produced), sorted(self.read),
                 )
 
+    # ---- per-task time limit -----------------------------------------------
+    def _timed_out(self, request, clock: TaskClock) -> ToolMessage:
+        """The researcher exceeded its time limit: tell the orchestrator, remember it for the report."""
+        call = request.tool_call
+        brief = " ".join(str(call.get("args", {}).get("description", "")).split())[:200]
+        self.planner.timed_out.append(brief or "(unnamed research task)")
+        synth_log.warning("TIME LIMIT | researcher task abandoned after %.0fs (limit %.0fs): %s",
+                          clock.elapsed, clock.limit, brief)
+        return ToolMessage(
+            name="task", tool_call_id=call["id"], status="error",
+            content=(
+                f"Notes file: NOT GENERATED - TIME LIMIT EXCEEDED ({clock.limit:.0f}s). "
+                f"The researcher for this task was stopped: {brief}\n"
+                "Do NOT retry or re-delegate this task. Continue with the notes the other tasks "
+                "produced, and state in the final report (Executive Summary and Evidence gaps) that "
+                "this topic was not researched because the research task exceeded the time limit."
+            ),
+        )
+
     def wrap_tool_call(self, request, handler):
         blocked = self._check(request)
         if blocked:
             return blocked
-        result = handler(request)
-        self._observe(request, result)
-        return result
+        if request.tool_call["name"] != "task" or self.timeout <= 0:
+            result = handler(request)
+            self._observe(request, result)
+            return result
+
+        clock = TaskClock(self.timeout)
+        box: dict = {}
+        ctx = contextvars.copy_context()
+
+        def work():
+            TASK_CLOCK.set(clock)  # visible to the researcher's middleware in this thread
+            try:
+                box["result"] = handler(request)
+            except BaseException as exc:  # noqa: BLE001 - re-raised below unless abandoned
+                box["error"] = exc
+
+        # Daemon thread: a researcher stuck in a model/network call cannot block interpreter exit.
+        worker = threading.Thread(target=ctx.run, args=(work,), daemon=True, name="researcher-task")
+        worker.start()
+        worker.join(self.timeout)
+        if worker.is_alive():
+            clock.cancelled.set()
+            return self._timed_out(request, clock)
+        if "error" in box:
+            if isinstance(box["error"], TaskCancelled):
+                return self._timed_out(request, clock)
+            raise box["error"]
+        self._observe(request, box["result"])
+        return box["result"]
 
     async def awrap_tool_call(self, request, handler):
         blocked = self._check(request)
         if blocked:
             return blocked
-        result = await handler(request)
+        if request.tool_call["name"] != "task" or self.timeout <= 0:
+            result = await handler(request)
+            self._observe(request, result)
+            return result
+        clock = TaskClock(self.timeout)
+        TASK_CLOCK.set(clock)  # asyncio copies the context into the awaited task
+        try:
+            result = await asyncio.wait_for(handler(request), self.timeout)
+        except (asyncio.TimeoutError, TaskCancelled):
+            clock.cancelled.set()
+            return self._timed_out(request, clock)
         self._observe(request, result)
         return result
 
@@ -449,7 +536,7 @@ def build_orchestrator(
     planner = ResearchPlanner()
     save_report, verify_report = make_report_tools(planner, report_path, request_path)
     return create_deep_agent(
-        model=model or _model_name(),
+        model=model or build_model(_model_name()),
         tools=[planner.submit_research_plan, save_report, verify_report],
         system_prompt=ORCHESTRATOR_PROMPT,
         subagents=[get_researcher_subagent(model=researcher_model)],

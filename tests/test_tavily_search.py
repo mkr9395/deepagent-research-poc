@@ -31,6 +31,7 @@ def make(limits=Limits(), fake=None):
 
 
 GAP = "Revenue figure conflicts between sources"
+EVID = "Earlier result: FY25 revenue $245B (sec.gov 10-K)"
 
 
 def test_ceilings_cap_env(monkeypatch):
@@ -54,8 +55,8 @@ def test_request_budget_blocks_and_stops_calling_tavily():
 def test_per_task_limit():
     g, fake = make(Limits(calls_per_task=2, research_tasks=3, calls_per_request=9))
     g.search("q1", "t1")
-    g.search("q2", "t1", GAP)
-    assert "TASK_BUDGET_EXHAUSTED" in g.search("q3", "t1", GAP)
+    g.search("q2", "t1", GAP, EVID)
+    assert "TASK_BUDGET_EXHAUSTED" in g.search("q3", "t1", GAP, EVID)
     assert "[TAVILY_BLOCKED" not in g.search("q4", "t2")  # other task unaffected
     assert len(fake.calls) == 3
 
@@ -65,17 +66,26 @@ def test_task_count_limit():
     g.search("q1", "t1")
     g.search("q2", "t2")
     assert "TASK_LIMIT_REACHED" in g.search("q3", "t3")
-    assert "[TAVILY_BLOCKED" not in g.search("q4", "t1", GAP)  # existing task still fine
+    assert "[TAVILY_BLOCKED" not in g.search("q4", "t1", GAP, EVID)  # existing task still fine
     assert len(fake.calls) == 3
 
 
 def test_second_search_needs_gap_reason():
     g, fake = make()
     g.search("q1", "t1")
-    assert "GAP_REASON_REQUIRED" in g.search("q2", "t1")
-    assert "GAP_REASON_REQUIRED" in g.search("q2", "t1", "more")
+    assert "REFLECTION_REQUIRED" in g.search("q2", "t1")                    # nothing stated
+    assert "REFLECTION_REQUIRED" in g.search("q2", "t1", GAP)               # gap but no evidence_so_far
+    assert "GAP_REASON_REQUIRED" in g.search("q2", "t1", "more", EVID)      # evidence but no real gap
     assert len(fake.calls) == 1  # blocked attempts cost nothing
-    assert "[TAVILY_BLOCKED" not in g.search("q2", "t1", GAP)
+    assert "[TAVILY_BLOCKED" not in g.search("q2", "t1", GAP, EVID)
+
+
+def test_conflict_can_justify_a_second_search_and_results_carry_next_step_hint():
+    g, fake = make()
+    first = g.search("q1", "t1")
+    assert "Next step:" in first and "STOP searching" in first
+    out = g.search("q2", "t1", "", EVID, "10-K says $245B, a blog says $262B")
+    assert "[TAVILY_BLOCKED" not in out and len(fake.calls) == 2
 
 
 def test_cache_does_not_use_budget():
@@ -89,7 +99,7 @@ def test_cache_does_not_use_budget():
 def test_start_request_resets_budget():
     g, _ = make(Limits(1, 1, 1))
     g.search("q1", "t1")
-    assert "EXHAUSTED" in g.search("q2", "t1", GAP)
+    assert "EXHAUSTED" in g.search("q2", "t1", GAP, EVID)
     g.start_request()
     assert "[TAVILY_BLOCKED" not in g.search("q2", "t1")
 
@@ -130,8 +140,8 @@ def test_default_task_ceiling_is_five():
     g, fake = make(Limits(calls_per_task=5, research_tasks=3, calls_per_request=15))
     g.search("q1", "t1")
     for i in range(2, 6):
-        assert "[TAVILY_BLOCKED" not in g.search(f"q{i}", "t1", GAP)
-    assert "TASK_BUDGET_EXHAUSTED" in g.search("q6", "t1", GAP)
+        assert "[TAVILY_BLOCKED" not in g.search(f"q{i}", "t1", GAP, EVID)
+    assert "TASK_BUDGET_EXHAUSTED" in g.search("q6", "t1", GAP, EVID)
     assert len(fake.calls) == 5
 
 

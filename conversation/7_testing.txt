@@ -1,0 +1,2584 @@
+
+> /rename testing
+  ⎿  Session renamed to: testing
+
+> <ide_opened_file>The user opened the file
+  d:\claude\deepagent-research-poc\conversation\6_langsmith_tavily.txt in the
+  IDE. This may or may not be related to the current task.</ide_opened_file>
+
+> Now run a complete end-to-end test using this request:
+
+  "Compare Visa Inc and Mastercard Incorporated based on recent revenue
+  performance, profitability, major financial and regulatory risks, and
+  business outlook. Highlight the key differences and cite the sources used."
+
+  Before changing anything, run the application as it currently exists.
+
+  I want to inspect:
+  - original_request.md
+  - research artifacts
+  - Tavily usage
+  - research subagent results
+  - main-agent synthesis
+  - final_report.md
+  - verification behavior
+
+  Do not make improvements yet.
+
+  First report:
+  1. what worked
+  2. what failed
+  3. any obvious quality issues
+  4. any unnecessary complexity
+  5. any potential Deep Agents misuse
+
+  Then recommend only the highest-priority fixes.
+
+● I'll start by looking at how the app is laid out and run, without reading any
+  secrets.
+
+  Searched for 1 pattern, read 4 files, listed 3 directories (ctrl+o to expand)
+
+● Now I have the design in view. Running the app unchanged, with -v logging
+  captured to a file.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The run is going in the background. I'll inspect everything once it finishes.
+
+  Read 2 files (ctrl+o to expand)
+
+● The app is running (about 5–10 minutes). I've read the orchestrator,
+  researcher, Tavily guard, reflection tool, request saver and verification
+  code. I'll pick this up when the run finishes.
+
+> The app is running (about 5–10 minutes). explain this
+
+● I started main.py as a background process: first --check, then the full agent
+  run on your Visa/Mastercard request, with -v logging written to a file. I
+  can't do anything with the results until it exits, and I'll be notified
+  automatically when it does.
+
+  The 5–10 minute estimate is my guess from how the pipeline is built. It isn't
+  a measurement. The time goes on these steps, in order:
+
+  1. Planning: main.py saves the request to outputs/original_request.md. The
+     orchestrator then calls submit_research_plan and write_todos.
+  2. Research: the orchestrator delegates up to 3 researcher tasks via task.
+     Each one runs up to 5 Tavily searches. After each search it calls
+     think_tool, then writes a note of 500 words or fewer.
+  3. Synthesis: the orchestrator read_files every note and writes the full
+     report with save_final_report.
+  4. Verification: it calls verify_final_report, and may make up to 2 correction
+     rounds.
+
+  Each step is a sequential LLM round-trip, and the Tavily calls add network
+  time, so it takes a few minutes.
+
+  While it runs I've only read code, which I did to know what to look for in the
+  results. I haven't changed anything. When it finishes I'll inspect:
+  - the log
+  - original_request.md
+  - the notes
+  - the Tavily call count
+  - the final report
+  - what verify_final_report said
+
+  Then I'll give you the report you asked for.
+
+  One thing I noticed already: you mentioned final_report.md, but the code saves
+  reports as outputs/<companies>_final_report.md, so I expect something like
+  outputs/visa-inc-mastercard-incorporated_final_report.md. The
+  outputs/final_report.md that exists in the folder is a leftover from an
+  earlier run.
+
+> <ide_opened_file>The user opened the file d:\claude\deepagent-research-poc\ou
+  tputs\research\notes\visa-mastercard-legal-risk.md in the IDE. This may or
+  may not be related to the current task.</ide_opened_file>
+
+> is it still running in background?
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Yes, it's still running. The log is still being written, and a Python process
+  is using about 125 MB of memory.
+
+  It has finished the research phase. Two researcher tasks have returned and
+  their notes are on disk:
+  - visa-mastercard-legal-risk.md, 380 words, 5 searches.
+  - visa-mastercard-outlook-b941.md
+
+  A third note, on financial performance, hasn't appeared yet. I expect the
+  orchestrator to read the notes, write the report and verify it next. I'll be
+  notified when the run exits, and I'll go through the results then.
+
+> for how long it has been running?
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● About 5 minutes. The run started at 19:22:03, when original_request.md was
+  written. It's now 19:27:08.
+
+  - Research: the two notes landed at about 19:23:29, roughly 1.5 minutes in.
+    There have been 10 Tavily calls so far.
+  - Since then: nothing new has been written for about 3.5 minutes. The
+    orchestrator is probably reading the notes and writing the report. It could
+    also be running a third research task, since the financial-performance note
+    hasn't appeared.
+
+  I can't tell which from timestamps alone. I'll check the log when the process
+  exits.
+
+> i want to add a time limit or generating the 3 files. If a files takes more
+  time to generate then stop the generation part and mention that to the
+  orchestrator agent. in the final report it should be mentioned that the time
+  report excedded time limit thats why we didn't genearte it.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The run is still going, and it's relevant to your request. It's now 19:29, and
+  the log has been silent for about 6 minutes since the two notes were saved.
+  The third task, financial performance, hasn't produced a note. That one task
+  is probably what's holding up the whole run, which is the situation you want a
+  time limit for.
+
+  I haven't touched the code yet. I want the baseline run to finish first, so
+  the test report describes the app as it was. Editing files now wouldn't affect
+  the running process, but it would muddy what I'm reporting.
+
+  Proposed design (small, and it fits the Deep Agents structure):
+  - Where: OrchestratorGuardMiddleware already wraps every task call. It would
+    run the researcher with a timeout, set by RESEARCH_TASK_TIMEOUT_SECONDS in
+    .env, defaulting to 180s.
+  - On timeout: a stop flag makes the researcher's guard middleware end that
+    subagent at its next model or tool step. This is needed because a Python
+    thread can't be killed, and without it the timed-out researcher would keep
+    spending Tavily calls in the background. The orchestrator gets back Notes
+    file: NOT GENERATED - exceeded the time limit of N s, and it may not retry
+    that task.
+  - In the report: the orchestrator prompt would require an "Evidence gaps"
+    entry saying that topic was not researched because the task exceeded the
+    time limit. save_final_report would refuse to save if a timeout happened and
+    the report doesn't mention it.
+  - Test: a quick smoke test with a tiny timeout and a fake slow researcher, as
+    CLAUDE.md prefers.
+
+  One assumption to confirm: by "3 files" I mean the 3 research notes, one per
+  task, and not the final report. Is 180s per task a good default? A normal task
+  here took about 80s, per the notes' timestamps.
+
+  I'll start building once the baseline run finishes and I've given you the test
+  report, unless you want me to start now.
+
+> let's stop this run. i will give some other query on which you can run it.
+
+  Ran 4 shell commands (ctrl+o to expand)
+
+● Background command "Run env check then full end-to-end agent run" completed
+(exit code 0)
+
+● I stopped the run. Both Python processes are gone, so nothing is still calling
+  OpenAI or Tavily.
+
+  What it left behind
+  - Tavily: 10 of 15 searches were used.
+  - Notes: two notes were saved, visa-mastercard-legal-risk.md and
+    visa-mastercard-outlook-b941.md. The third note, on financial performance,
+    never appeared. About 10 minutes in, the run was stuck on that task, with no
+    final report and no verification.
+  - Overwritten files: outputs/original_request.md now holds the Visa/Mastercard
+    request. The run's reset step deleted the 3 old McDonald's/Yum notes, which
+    git shows as deleted. They're recoverable with git restore if you want
+    them.
+  - Not touched: the existing final reports are untouched.
+
+  The Visa/Mastercard notes are untracked files. I left them in place, and the
+  next run will clear them automatically.
+
+  I haven't changed any code. Send the next query when you're ready. Do you want
+  me to run it on the app as it is now, or build the per-task time limit first?
+  If we build the limit first, the next run will also test it.
+
+> check again
+
+  Searched for 1 pattern, ran 1 shell command (ctrl+o to expand)
+
+● Nothing has changed since I stopped the run. It did not finish.
+
+  - The "completed, exit 0" notification: that only means the wrapper shell
+    ended after I killed Python. The log's last line is exit=127, which is
+    almost certainly the kill (I haven't confirmed that). There's no traceback
+    and no "Final report" line, and outputs/ has no Visa/Mastercard report. The
+    last log line is a researcher result entering the orchestrator at about
+    19:23.
+  - What the log shows:
+    - The plan had 3 tasks, but only 2 ever started a Tavily search, tasks
+      visa-mastercard-legal-risk and visa-mastercard-outlook-b941. Those two
+      used all 10 calls (5 each).
+    - The third task, financial performance, never made a single search. The
+      orchestrator must have been waiting on that task call or on its own next
+      model call. I can't tell from the log which, because nothing is logged
+      between the plan and the second result.
+    - Nothing was logged after about 19:23:30 until I killed it at roughly
+      19:31. That's 8 minutes of silence.
+    - There were no errors or blocked calls. Every search after the first
+      carried a gap_reason, so the budget guard worked as designed.
+
+  So the run was hung or very slow on the revenue and profitability task. That's
+  the most important of the four requested dimensions, and the one the time
+  limit would have caught.
+
+  Send your next query when you're ready. I'll run it the same way, but I'd add
+  a periodic heartbeat so I can see where it stalls. Or I can build the time
+  limit first and test it with that query.
+
+> now lets test again with a different query :
+  Now run a complete end-to-end test using this request:
+
+  "Compare JPMorgan Chase and Bank of America based on recent revenue
+  performance, profitability, major financial and regulatory risks, and
+  business outlook. Highlight the key differences and cite the sources used."
+
+  Before changing anything, run the application as it currently exists.
+
+  I want to inspect:
+  - original_request.md
+  - research artifacts
+  - Tavily usage
+  - research subagent results
+  - main-agent synthesis
+  - final_report.md
+  - verification behavior
+
+  Do not make improvements yet.
+
+  First report:
+  1. what worked
+  2. what failed
+  3. any obvious quality issues
+  4. any unnecessary complexity
+  5. any potential Deep Agents misuse
+
+  Then recommend only the highest-priority fixes.
+
+● Running the app as-is on the JPMorgan/Bank of America request. I'm adding a
+  15-minute wrapper timeout so a hang can't run forever. That doesn't change any
+  code. I'm also running Python unbuffered so the log is live.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The JPMorgan/Bank of America run has started in the background, unchanged and
+  with a 15-minute hard cap. I'll inspect the results when it exits. If you ask,
+  I can check progress in the meantime.
+
+> <ide_opened_file>The user opened the file d:\claude\deepagent-research-poc\ou
+  tputs\research\notes\jpm-bofa-financial-regulatory-risk.md in the IDE. This
+  may or may not be related to the current task.</ide_opened_file>
+
+> what is the progress?
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The run started at 19:32:34 and it's now 19:38, so it has been going about 6
+  minutes. It follows the same pattern as the Visa run so far.
+
+  Done:
+  - The plan covered 3 tasks.
+  - Two researchers ran. Their notes were saved at 19:34:04, about 1.5 minutes
+    in.
+  - They used 10 of 15 Tavily calls, 5 each, and both hit the per-task cap.
+  - Both researchers returned short replies of 80 and 133 words, with the notes
+    (321 and 393 words) left on disk.
+
+  Not done:
+  - The third planned task has not started a search. Only two research tasks
+    appear in the Tavily log.
+  - There has been no read_file of the notes, no report save and no
+    verification.
+  - Nothing has been logged since 19:34:04, so the run has been silent for about
+    4 minutes.
+
+  This is the same stall as the Visa run. After two researchers return, the
+  orchestrator goes quiet with the third task never starting. A per-task time
+  limit would address this. It looks like a real problem in the app and not a
+  one-off.
+
+  Both tasks also hit their 5-search cap with the gap_reason still saying Bank
+  of America's FY2025 figures were "still missing". So the note may end up thin
+  on BofA numbers.
+
+  The 15-minute cap ends the run at about 19:47:30. I'll inspect everything when
+  it exits.
+> how many api calls for the searches have been made in Bofa case?
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Ten Tavily search calls so far in the JPMorgan/BofA run, out of the 15 allowed
+  per request:
+
+  - Task 1 (jpm-bac-fy-revenue-profitability): 5 of 5.
+  - Task 2 (jpm-bofa-financial-regulatory-risk): 5 of 5.
+  - Cache hits: 0.
+  - Blocked calls: 0.
+
+  That count comes from the app's own "Tavily call N/15" log lines. The log
+  doesn't record the Tavily HTTP requests themselves, so I can't cross-check it
+  against what Tavily billed. The app counts a slot before the network call, so
+  it would also count a failed search.
+
+  The remaining 5 calls are available to the third task, which still hasn't
+  started searching. The log also shows 26 OpenAI API calls so far, covering the
+  orchestrator and both researchers. It's now 19:39 and still silent since
+  19:34.
+
+> we need to add some mechanism to limit the time taken and in case if all the
+  3 reports are not generated, still the orchestrator can take the reports
+  generated till now and generate the final report with it
+
+● I'll build this now. The running JPMorgan/BofA process already has its code
+  loaded, so editing won't affect it. First I'm checking how the existing tests
+  fake the agents, so my smoke test matches.
+
+  Searched for 1 pattern, read 1 file, ran 1 shell command (ctrl+o to expand)
+
+● Now the implementation. First, the shared clock and the researcher-side
+  enforcement in research_guard.py.
+
+● Update(fin_agent\research_guard.py)
+  ⎿  Added 47 lines
+      37  ]
+      38  _TRUNCATION_MARK = "\n[truncated to fit the word limit]"
+      39  
+      40 +# ---- per-task time limit ------------------------------------
+         +------------------                                             
+      41 +DEFAULT_TASK_TIMEOUT_SECONDS = 180                             
+      42 +SOFT_LIMIT_FRACTION = 0.7  # after this share of the limit the 
+         +researcher must stop searching                                 
+      43  
+      44 +                                                               
+      45 +class TaskCancelled(Exception):                                
+      46 +    """Raised inside a researcher that the orchestrator has aba
+         +ndoned (hard time limit hit)."""                               
+      47 +                                                               
+      48 +                                                               
+      49 +class TaskClock:                                               
+      50 +    """Deadline for ONE researcher task. The orchestrator creat
+         +es it and publishes it through                                 
+      51 +    `TASK_CLOCK`; the researcher's guard middleware reads it.  
+      52 +                                                               
+      53 +    Soft limit: no more web searches, the researcher writes its
+         + note from what it has.                                        
+      54 +    Hard limit: the orchestrator stops waiting, sets `cancelled
+         +`, and the abandoned researcher                                
+      55 +    raises `TaskCancelled` at its next tool call so it cannot k
+         +eep spending searches/tokens."""                               
+      56 +                                                               
+      57 +    def __init__(self, limit_seconds: float, now=time.monotonic
+         +):                                                             
+      58 +        self._now = now                                        
+      59 +        self.start = now()                                     
+      60 +        self.limit = limit_seconds                             
+      61 +        self.cancelled = threading.Event()                     
+      62 +                                                               
+      63 +    @property                                                  
+      64 +    def elapsed(self) -> float:                                
+      65 +        return self._now() - self.start                        
+      66 +                                                               
+      67 +    def soft_expired(self) -> bool:                            
+      68 +        return self.elapsed >= self.limit * SOFT_LIMIT_FRACTION
+      69 +                                                               
+      70 +    def hard_expired(self) -> bool:                            
+      71 +        return self.elapsed >= self.limit                      
+      72 +                                                               
+      73 +                                                               
+      74 +TASK_CLOCK: ContextVar[TaskClock | None] = ContextVar("task_clo
+         +ck", default=None)                                             
+      75 +                                                               
+      76 +                                                               
+      77 +def task_timeout_seconds() -> float:                           
+      78 +    """RESEARCH_TASK_TIMEOUT_SECONDS from env (default 180); 0 
+         +or invalid disables the limit."""                              
+      79 +    raw = os.environ.get("RESEARCH_TASK_TIMEOUT_SECONDS", "").s
+         +trip()                                                         
+      80 +    if not raw:                                                
+      81 +        return DEFAULT_TASK_TIMEOUT_SECONDS                    
+      82 +    try:                                                       
+      83 +        return max(0.0, float(raw))                            
+      84 +    except ValueError:                                         
+      85 +        return DEFAULT_TASK_TIMEOUT_SECONDS                    
+      86 +                                                               
+      87 +                                                               
+      88  def count_words(text: str) -> int:
+      89      return len(text.split())
+      90  
+
+● Update(fin_agent\research_guard.py)
+  ⎿  Added 4 lines
+      15  from __future__ import annotations
+      16  
+      17  import logging
+      18 +import os                                                      
+      19  import re
+      20 +import threading                                               
+      21 +import time                                                    
+      22 +from contextvars import ContextVar                             
+      23  
+      24  from langchain.agents.middleware import AgentMiddleware
+      25  from langchain_core.messages import AIMessage, ToolMessage
+
+● Update(fin_agent\research_guard.py)
+  ⎿  Added 10 lines, removed 1 line
+      171          call = request.tool_call
+      172          name, args = call["name"], call.get("args", {})
+      173          error = None
+      174 -        if name in ("edit_file", "delete"):                   
+      174 +        clock = TASK_CLOCK.get()                              
+      175 +        if clock is not None and clock.cancelled.is_set():    
+      176 +            raise TaskCancelled("research task abandoned: time
+          + limit exceeded")                                             
+      177 +        if clock is not None and name == "tavily_search" and c
+          +lock.soft_expired():                                          
+      178              error = (
+      179 +                f"[TIME_LIMIT] {clock.elapsed:.0f}s of the {cl
+          +ock.limit:.0f}s time limit used. "                            
+      180 +                "No more searches: write the note NOW from the
+          + evidence you already have "                                  
+      181 +                "and flag what is missing as unverified."     
+      182 +            )                                                 
+      183 +        elif name in ("edit_file", "delete"):                 
+      184 +            error = (                                         
+      185                  f"Error: {name} is disabled. To change a note,
+            call write_file with the "
+      186                  "complete new content (it overwrites the previ
+           ous version)."
+      187              )
+
+● Now the orchestrator side. It needs to run each task under the clock, turn a
+  timeout into a result the model can act on, and refuse to save a report that
+  doesn't disclose the timeout.
+
+● Update(fin_agent\agents\orchestrator.py)
+  ⎿  Added 59 lines, removed 4 lines
+      424                      len(set(self.read) & set(self.produced)), 
+           len(self.produced), sorted(self.read),
+      425                  )
+      426  
+      427 +    # ---- per-task time limit -------------------------------
+          +----------------                                              
+      428 +    def _timed_out(self, request, clock: TaskClock) -> ToolMes
+          +sage:                                                         
+      429 +        """The researcher exceeded its time limit: tell the or
+          +chestrator, remember it for the report."""                    
+      430 +        call = request.tool_call                              
+      431 +        brief = " ".join(str(call.get("args", {}).get("descrip
+          +tion", "")).split())[:200]                                    
+      432 +        self.planner.timed_out.append(brief or "(unnamed resea
+          +rch task)")                                                   
+      433 +        synth_log.warning("TIME LIMIT | researcher task abando
+          +ned after %.0fs (limit %.0fs): %s",                           
+      434 +                          clock.elapsed, clock.limit, brief)  
+      435 +        return ToolMessage(                                   
+      436 +            name="task", tool_call_id=call["id"], status="erro
+          +r",                                                           
+      437 +            content=(                                         
+      438 +                f"Notes file: NOT GENERATED - TIME LIMIT EXCEE
+          +DED ({clock.limit:.0f}s). "                                   
+      439 +                f"The researcher for this task was stopped: {b
+          +rief}\n"                                                      
+      440 +                "Do NOT retry or re-delegate this task. Contin
+          +ue with the notes the other tasks "                           
+      441 +                "produced, and state in the final report (Exec
+          +utive Summary and Evidence gaps) that "                       
+      442 +                "this topic was not researched because the res
+          +earch task exceeded the time limit."                          
+      443 +            ),                                                
+      444 +        )                                                     
+      445 +                                                              
+      446      def wrap_tool_call(self, request, handler):
+      447          blocked = self._check(request)
+      448          if blocked:
+      449              return blocked
+      431 -        result = handler(request)                             
+      432 -        self._observe(request, result)                        
+      433 -        return result                                         
+      450 +        if request.tool_call["name"] != "task" or self.timeout
+          + <= 0:                                                        
+      451 +            result = handler(request)                         
+      452 +            self._observe(request, result)                    
+      453 +            return result                                     
+      454  
+      455 +        clock = TaskClock(self.timeout)                       
+      456 +        box: dict = {}                                        
+      457 +        ctx = contextvars.copy_context()                      
+      458 +                                                              
+      459 +        def work():                                           
+      460 +            TASK_CLOCK.set(clock)  # visible to the researcher
+          +'s middleware in this thread                                  
+      461 +            try:                                              
+      462 +                box["result"] = handler(request)              
+      463 +            except BaseException as exc:  # noqa: BLE001 - re-
+          +raised below unless abandoned                                 
+      464 +                box["error"] = exc                            
+      465 +                                                              
+      466 +        # Daemon thread: a researcher stuck in a model/network
+          + call cannot block interpreter exit.                          
+      467 +        worker = threading.Thread(target=ctx.run, args=(work,)
+          +, daemon=True, name="researcher-task")                        
+      468 +        worker.start()                                        
+      469 +        worker.join(self.timeout)                             
+      470 +        if worker.is_alive():                                 
+      471 +            clock.cancelled.set()                             
+      472 +            return self._timed_out(request, clock)            
+      473 +        if "error" in box:                                    
+      474 +            if isinstance(box["error"], TaskCancelled):       
+      475 +                return self._timed_out(request, clock)        
+      476 +            raise box["error"]                                
+      477 +        self._observe(request, box["result"])                 
+      478 +        return box["result"]                                  
+      479 +                                                              
+      480      async def awrap_tool_call(self, request, handler):
+      481          blocked = self._check(request)
+      482          if blocked:
+      483              return blocked
+      439 -        result = await handler(request)                       
+      484 +        if request.tool_call["name"] != "task" or self.timeout
+          + <= 0:                                                        
+      485 +            result = await handler(request)                   
+      486 +            self._observe(request, result)                    
+      487 +            return result                                     
+      488 +        clock = TaskClock(self.timeout)                       
+      489 +        TASK_CLOCK.set(clock)  # asyncio copies the context in
+          +to the awaited task                                           
+      490 +        try:                                                  
+      491 +            result = await asyncio.wait_for(handler(request), 
+          +self.timeout)                                                 
+      492 +        except (asyncio.TimeoutError, TaskCancelled):         
+      493 +            clock.cancelled.set()                             
+      494 +            return self._timed_out(request, clock)            
+      495          self._observe(request, result)
+      496          return result
+      497  
+
+● Update(fin_agent\agents\orchestrator.py)
+  ⎿  Added 2 lines, removed 1 line
+      365      be written from the short summaries alone.
+      366      """
+      367  
+      368 -    def __init__(self, planner: ResearchPlanner):             
+      368 +    def __init__(self, planner: ResearchPlanner, timeout: floa
+          +t | None = None):                                             
+      369          self.planner = planner
+      370 +        self.timeout = task_timeout_seconds() if timeout is No
+          +ne else timeout  # seconds per researcher task                
+      371          self.produced: list[str] = []  # note paths announced 
+           by researcher results
+      372          self.read: dict[str, int] = {}  # note path -> words t
+           he orchestrator read
+      373  
+
+● Update(fin_agent\agents\orchestrator.py)
+  ⎿  Added 9 lines, removed 1 line
+      383              error = self.planner.allow_delegation()
+      384          elif call["name"] == "save_final_report":
+      385              unread = [p for p in self.produced if p not in sel
+           f.read]
+      386 -            if unread:                                        
+      386 +            report = str(call.get("args", {}).get("markdown", 
+          +"")).lower()                                                  
+      387 +            if self.planner.timed_out and "time limit" not in 
+          +report:                                                       
+      388                  error = (
+      389 +                    "Error: a research task exceeded the time 
+          +limit and was not generated: "                                
+      390 +                    f"{self.planner.timed_out}. The report mus
+          +t say so explicitly (use the words "                          
+      391 +                    "'time limit') in the Executive Summary an
+          +d the Evidence gaps section, and mark "                       
+      392 +                    "the affected dimension as not researched.
+          + Nothing was saved."                                          
+      393 +                )                                             
+      394 +            elif unread:                                      
+      395 +                error = (                                     
+      396                      f"Error: read these research notes with re
+           ad_file before saving the report: "
+      397                      f"{unread}. The report must be synthesized
+            from the notes, not the summaries."
+      398                  )
+
+● Update(fin_agent\agents\orchestrator.py)
+  ⎿  Added 2 lines
+      15  """
+      16  from __future__ import annotations
+      17  
+      18 +import asyncio                                                 
+      19 +import contextvars                                             
+      20  import logging
+      21  import os
+      22  import re
+
+● Update(fin_agent\agents\orchestrator.py)
+  ⎿  Added 3 lines, removed 1 line
+      32  
+      33  from fin_agent.agents.researcher import get_backend, get_resear
+          cher_subagent
+      34  from fin_agent.report_check import check_report, request_questi
+          on
+      35 -from fin_agent.research_guard import NOTES_DIR, NOTE_MAX_WORDS,
+         - count_words                                                   
+      35 +from fin_agent.research_guard import (                         
+      36 +    NOTES_DIR, NOTE_MAX_WORDS, TASK_CLOCK, TaskCancelled, TaskC
+         +lock, count_words, task_timeout_seconds,                       
+      37 +)                                                              
+      38  
+      39  logger = logging.getLogger("fin_agent.orchestrator")
+      40  synth_log = logging.getLogger("fin_agent.synthesis")  # artifac
+          t reads during synthesis
+
+● Update(fin_agent\agents\orchestrator.py)
+  ⎿  Added 1 line
+      269          self.plan: dict | None = None
+      270          self.delegated_total = 0  # researcher tasks started t
+           his request (never reset)
+      271          self.delegated_in_plan = 0
+      272 +        self.timed_out: list[str] = []  # briefs of researcher
+          + tasks stopped by the time limit                              
+      273          self._lock = threading.Lock()
+      274          self.submit_research_plan = self._make_tool()
+      275  
+
+● Update(fin_agent\agents\orchestrator.py)
+  ⎿  Added 6 lines
+       89     Only include the topics this task actually covers.
+       90  5. COLLECT. Each researcher returns a short summary and a `Not
+           es file:` path. Keep only
+       91     those (summary + path). If a task returns `NOT SAVED`, trea
+           t its findings as unverified.
+       92 +   Each task has a time limit (enforced in code). If a task re
+          +turns `NOT GENERATED - TIME LIMIT                             
+       93 +   EXCEEDED`, do NOT retry it: carry on with the notes the oth
+          +er tasks produced and write the                               
+       94 +   report from those. The report must state plainly (Executive
+          + Summary and Evidence gaps, using                             
+       95 +   the words "time limit") which topic was not researched beca
+          +use its research task exceeded                                
+       96 +   the time limit, and must not fill that gap from memory. `sa
+          +ve_final_report` is refused                                   
+       97 +   until the report says so. This applies even if only one tas
+          +k, or none, produced a note.                                  
+       98  6. READ. At synthesis time call read_file on EVERY notes file 
+           returned by the researchers
+       99     (paths start with {NOTES_DIR}/). The summaries are only poi
+           nters; the notes are the
+      100     evidence. `save_final_report` is refused until every produc
+           ed note has been read. Do not
+
+● Now a one-line note in the researcher prompt, plus a smoke test using a
+  deliberately slow scripted researcher.
+
+● Update(fin_agent\agents\researcher.py)
+  ⎿  Added 2 lines, removed 1 line
+      57  3. Call think_tool on the result. Follow its decision.
+      58  4. Search again ONLY if think_tool says SEARCH_AGAIN (an import
+          ant gap or conflicting
+      59     figures). Pass its gap_reason. Never more than 5 searches fo
+          r the brief; usually 2-4.
+      60 -   If a tool returns [TAVILY_BLOCKED], do not retry - write the
+         - note from what you have.                                      
+      60 +   If a tool returns [TAVILY_BLOCKED] or [TIME_LIMIT], do not r
+         +etry - write the note from what                                
+      61 +   you have immediately (you have a time limit; be quick).     
+      62  5. Write the note with write_file to {NOTES_DIR}/<task_id>.md.
+      63  6. Reply to the parent (format below). Do not call other tools 
+          after writing the note.
+      64  
+
+● Write(tests\test_time_limit.py)
+  ⎿  Wrote 76 lines to tests\test_time_limit.py
+       1 """Offline smoke test of the per-task time limit: a researcher t
+         hat is too slow is abandoned,
+       2 the orchestrator is told, and the final report must disclose it.
+         """
+       3 import threading
+       4 import time
+       5
+       6 from deepagents.backends import FilesystemBackend
+       7 from langchain_core.messages import AIMessage
+       8
+     … +68 lines (ctrl+o to expand)
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● All 52 tests pass, including the new time-limit test. Checking the live run
+  now.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● I added the per-task time limit. The new offline test passes along with the
+  other 51 tests (52 total). I haven't run it against the live app yet.
+
+  How it works
+  - Limit: each researcher task gets RESEARCH_TASK_TIMEOUT_SECONDS seconds, 180
+    by default. Setting it to 0 turns the limit off.
+  - At 70% of the limit: the researcher's tavily_search returns [TIME_LIMIT],
+    which tells it to write its note now. A slow task can still leave a partial
+    note.
+  - At 100%:
+    - The orchestrator stops waiting and sets a cancel flag. The abandoned
+      researcher raises TaskCancelled at its next tool call, so it stops
+      spending searches and tokens.
+    - The task result becomes Notes file: NOT GENERATED - TIME LIMIT EXCEEDED.
+      It tells the orchestrator not to retry and to carry on with the notes it
+      has.
+  - Report disclosure: the prompt requires the report to say which topic wasn't
+    researched because of the time limit. This is enforced in code:
+    save_final_report is refused until the report contains the words "time
+    limit". The check works even if every task times out.
+  - Parallel tasks: a timeout in one task doesn't affect the others, because
+    each task has its own clock.
+
+  Test: tests/test_time_limit.py uses a deliberately slow researcher. It checks
+  that the orchestrator returns in about 0.5s, that an undisclosed report is
+  refused, that a disclosed one is saved, and that the abandoned thread stops
+  without writing a note.
+
+  Changes:
+  - research_guard.py (fin_agent/research_guard.py): the clock and the
+    researcher-side checks.
+  - orchestrator.py (fin_agent/agents/orchestrator.py): the timeout wrapper, the
+    report check and the prompt step.
+  - researcher.py (fin_agent/agents/researcher.py): one line in the prompt.
+
+  Limits to know about
+  - A Python thread can't be killed. A researcher stuck inside a model call
+    finishes that call first, and then stops.
+  - A hang in the orchestrator's own model calls isn't covered, only the task
+    calls.
+  - The default of 180s is a guess. Earlier tasks produced notes in about 80s,
+    and the Visa task that stalled had made no search at all.
+
+  The JPMorgan/BofA test: it's still running, 11 minutes in, and still silent
+  since 19:34. It started before these edits and will run to its 15-minute cap
+  at about 19:47. The run is a baseline for the old behaviour. After it ends
+  I'll give you the report you asked for. Then I can rerun the same query with
+  the new limit, if you'd like.
+
+> kill the JPMorgan/Bofa task but first tell me about all the changes you did
+  right now
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● I've made the time-limit changes across 3 modified files and 1 new test file,
+  all uncommitted on feature/testing, and I haven't updated the README or
+  architecture docs for the new env variable. Next I'm killing the JPMorgan/BofA
+  run. · summary
+  Ran 2 shell commands (ctrl+o to expand)
+
+● Background command "Run full agent on JPM/BofA query with timeout" completed
+(exit code 0)
+
+● I killed the JPMorgan/BofA run at 19:44:33. No main.py process is left, and
+  the log ends with the same exit=127 as the Visa run.
+
+  What it left behind
+  - Baseline result: it stalled the same way as the Visa run, so that's 2 of 2
+    on the old code. Both researchers finished by 19:34 and produced notes, 10
+    of 15 Tavily calls were used, and then the log went silent. It never read
+    the notes, saved a report or verified anything.
+  - Notes: jpm-bac-fy-revenue-profitability.md and
+    jpm-bofa-financial-regulatory-risk.md are on disk. The third task never
+    started a search.
+  - Report: none was produced.
+  - Overwritten files: outputs/original_request.md now holds the JPMorgan
+    request.
+
+  The cause of the stall is still unknown. The plan had 3 tasks, but only 2
+  researchers ran, and the log has nothing after that. In both runs the task
+  calls that did return showed no sign of the third. I'd like to find out
+  whether the third task call hangs or the orchestrator's own model call does.
+  The new time limit only covers the first case.
+
+  Do you want me to rerun the JPMorgan query now with the time limit in place?
+  That would test the fix and also show where the stall comes from.
+
+> we need to also check on Open ai calls. it is costing too much right now. can
+  you check how many calls are being made for one question asked?
+
+  Ran 3 shell commands (ctrl+o to expand)
+
+● No OpenAI calls were made beyond those logged, but the logs can't say what
+  each call cost. I counted the OpenAI requests in both runs. Neither run had a
+  429, a retry or an error.
+
+  One question costs about 26 OpenAI calls (stalled runs; the cost would be
+  higher if they had finished). Both runs came to the same total, 26 calls.
+
+  ┌──────────────┬───────────────┬──────────────────────────────────────────┐
+  │     Who      │     Calls     │                   Why                    │
+  ├──────────────┼───────────────┼──────────────────────────────────────────┤
+  │ Researcher 1 │ about 12      │ 5 searches, 5 think_tool calls, 1 note   │
+  │              │               │ write, 1 reply                           │
+  ├──────────────┼───────────────┼──────────────────────────────────────────┤
+  │ Researcher 2 │ about 12      │ same pattern                             │
+  ├──────────────┼───────────────┼──────────────────────────────────────────┤
+  │ Researcher 3 │ no response   │ it was briefed, but no OpenAI response   │
+  │              │ logged        │ or Tavily search ever appeared           │
+  ├──────────────┼───────────────┼──────────────────────────────────────────┤
+  │ Orchestrator │ about 3 so    │ submit the plan, issue the tasks,        │
+  │              │ far           │ receive results                          │
+  └──────────────┴───────────────┴──────────────────────────────────────────┘
+
+  A finished run adds more orchestrator calls on top of that:
+  - write_todos.
+  - read_file for each of 3 notes.
+  - save_final_report.
+  - verify_final_report, plus up to 2 correction rounds, each with a full report
+    rewrite.
+
+  I estimate 40–50 calls for a complete run. I haven't observed a complete run,
+  so treat that as an estimate.
+
+  Why it costs more than the call count suggests
+  1. Every call resends the whole history. A researcher's 12th call carries its
+     system prompt (about 810 words), 5 search results of about 600 characters
+     each, and every earlier step. The orchestrator prompt is about 1,355 words
+     and rides along on every orchestrator call.
+  2. think_tool doubles the loop. Each search is followed by a separate model
+     call whose only job is to decide whether to search again. That is 5 extra
+     calls per researcher, about 10 of the 26.
+  3. Both researchers used all 5 searches. The gap reason was "still missing"
+     every time, so the 5-search cap acts as the real target. Every extra search
+     adds two more calls (search plus think_tool) and a longer history.
+  4. Your model. gpt-6.1-terra is the default, and I haven't seen the actual
+     per-token price.
+
+  Third researcher: the logs show 3 briefs sent in each run, and 2 replies back.
+  The third researcher's OpenAI request never logged a response (the HTTP line
+  only appears when it returns), so that request may be hung. That could explain
+  both the stalls and cost that never shows up in the logs. Check your OpenAI
+  usage dashboard for requests that began but never completed, because I can't
+  see that from here.
+
+  Options, ordered by savings per effort (I haven't changed anything):
+  1. Drop think_tool and let the Tavily guard's gap_reason requirement do the
+     gating. This saves about 10 calls and a lot of context.
+  2. Lower the per-task cap from 5 searches to 3. That saves about 8 calls, and
+     the notes are 500 words at most anyway.
+  3. Merge to 2 tasks instead of 3 for typical comparisons.
+  4. Add token and call counting through a callback, so we get real numbers
+     instead of estimates. LangSmith tracing is configured in this project, and
+     its trace for a run would show per-call token counts. Do you want me to
+     read it?
+
+  I'd do 4 first, because the other three are guesses until we have real token
+  counts.
+
+> yes only apply 4
+
+● Applying only option 4: count OpenAI calls and tokens per agent, so we get
+  real numbers. I'm adding a small callback tracker and wiring it into main.py.
+  Nothing else changes.
+
+● Write(fin_agent\usage.py)
+  ⎿  Wrote 65 lines to fin_agent\usage.py
+       1 """Count LLM calls and tokens per agent for one run (a LangChain
+          callback; no extra services).
+       2
+       3 Passed in `config["callbacks"]`, it also sees the researcher sub
+         agent's calls. It records a
+       4 call when it STARTS and again when it ends, so a request that ne
+         ver returns (hung) shows up
+       5 as started-but-not-finished instead of being invisible.
+       6 """
+       7 from __future__ import annotations
+     … +58 lines (ctrl+o to expand)
+
+● Update(main.py)
+  ⎿  Added 15 lines, removed 10 lines
+      66      start_request()  # reset the Tavily budget for this request
+      67  
+      68      agent = build_orchestrator()
+      69 +    usage = UsageTracker()                                     
+      70      print("Running agent (planning, researching, synthesizing -
+           this can take a few minutes)...")
+      70 -    result = agent.invoke(                                     
+      71 -        {"messages": [{"role": "user", "content": query}]},    
+      72 -        # run_name/tags/metadata label the root trace in LangSm
+         -ith (no effect when tracing is off).                           
+      73 -        config={                                               
+      74 -            "recursion_limit": 100,                            
+      75 -            "run_name": "financial-comparison",                
+      76 -            "tags": ["fin-agent-poc"],                         
+      77 -            "metadata": {"query": query[:300]},                
+      78 -        },                                                     
+      79 -    )                                                          
+      71 +    try:                                                       
+      72 +        result = agent.invoke(                                 
+      73 +            {"messages": [{"role": "user", "content": query}]},
+      74 +            # run_name/tags/metadata label the root trace in La
+         +ngSmith (no effect when tracing is off).                       
+      75 +            config={                                           
+      76 +                "recursion_limit": 100,                        
+      77 +                "run_name": "financial-comparison",            
+      78 +                "tags": ["fin-agent-poc"],                     
+      79 +                "metadata": {"query": query[:300]},            
+      80 +                "callbacks": [usage],                          
+      81 +            },                                                 
+      82 +        )                                                      
+      83 +    finally:  # also on Ctrl+C / errors: show what was spent so
+         + far                                                           
+      84 +        print("\n" + usage.summary())                          
+      85      if tracing_enabled():
+      86          print(f"LangSmith trace sent to project '{os.environ.ge
+          t('LANGSMITH_PROJECT', 'default')}'.")
+      87      print("\n" + result["messages"][-1].text)
+
+● Update(main.py)
+  ⎿  Added 1 line
+      17  from fin_agent.agents.researcher import get_backend, RESEARCH_D
+          IR
+      18  from fin_agent.request import save_original_request
+      19  from fin_agent.tools.tavily_search import start_request
+      20 +from fin_agent.usage import UsageTracker                       
+      21  
+      22  PACKAGES = ["deepagents", "langchain-openai", "tavily-python", 
+          "python-dotenv", "pytest"]
+      23  REQUIRED_VARS = ["OPENAI_API_KEY", "TAVILY_API_KEY"]
+
+● Now a smoke test. It also checks that calls are attributed to the orchestrator
+  and the researcher separately, which I'm not sure the metadata supports.
+
+● Write(tests\test_usage.py)
+  ⎿  Wrote 51 lines to tests\test_usage.py
+       1 """Offline smoke test of the LLM usage tracker (scripted models,
+          fake Tavily)."""
+       2 from deepagents.backends import FilesystemBackend
+       3 from langchain_core.messages import AIMessage
+       4
+       5 from fin_agent.agents import orchestrator as orch_mod
+       6 from fin_agent.agents.orchestrator import build_orchestrator
+       7 from fin_agent.tools import tavily_search as ts
+       8 from fin_agent.tools.tavily_search import Limits, TavilyGuard
+       9 from fin_agent.usage import UsageTracker
+     … +42 lines (ctrl+o to expand)
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The usage tracker works, and all 53 tests pass. In the test, calls are
+  attributed to the orchestrator and the researcher separately, as shown above.
+
+  What changed
+  - New fin_agent/usage.py: a UsageTracker callback. For each agent it records:
+    - calls started and finished
+    - unfinished calls
+    - input, output and cached-input tokens
+
+    It counts a call when it starts, so a request that never returns shows up as
+    unfinished. That is how we'll see whether the third researcher's OpenAI
+    request hangs.
+  - main.py: it passes the tracker in the run config and prints a summary table
+    after every run. The summary is in a finally block, so it also prints on
+    Ctrl+C or a crash, which gives the cost of a stalled run.
+  - New tests/test_usage.py: the offline smoke test.
+
+  I changed nothing else. The time-limit changes from earlier are still there
+  and uncommitted.
+
+  Limit: the tokens come from the usage_metadata OpenAI reports. The scripted
+  test only proves the plumbing, so I haven't yet seen real numbers from the
+  live model.
+
+  Do you want me to run a real query to see the actual numbers? It uses real
+  OpenAI and Tavily calls, and it will also be the first live test of the time
+  limit. If so, send the query. I'd suggest the JPMorgan one, since we already
+  have its baseline of 26 calls and a stall to compare against.
+
+> what is the max time limit for each calls to generate the reports?
+
+● Only the research phase has a time limit. Nothing limits report generation.
+
+  Stage: Each researcher task, where the notes are made
+  Limit: 180s hard, set by RESEARCH_TASK_TIMEOUT_SECONDS
+  Enforced where: orchestrator.py (fin_agent/agents/orchestrator.py)
+  ────────────────────────────────────────
+  Stage: Same task, soft stage
+  Limit: 70% of that, about 126s: searches are refused and the researcher must
+    write its note
+  Enforced where: research_guard.py (fin_agent/research_guard.py)
+  ────────────────────────────────────────
+  Stage: Orchestrator reading notes, writing and saving the final report,
+    verifying
+  Limit: none
+  Enforced where: not enforced
+  ────────────────────────────────────────
+  Stage: A single OpenAI request
+  Limit: none that we set
+  Enforced where: falls back to the SDK default
+  ────────────────────────────────────────
+  Stage: Whole run
+  Limit: none
+  Enforced where: main.py has no overall timer
+
+  Per task: the tasks run in parallel, so the research phase takes at most about
+  180s in total, not 3 × 180s.
+
+  Report generation: this is the gap in what you asked for. The orchestrator's
+  own work has no limit. That includes reading the notes, writing the full
+  report, and up to 2 verify-and-rewrite rounds. A stall there would hang the
+  run the same way the old runs did.
+
+  Single OpenAI request: we don't set a timeout, so it uses the default in the
+  OpenAI Python library. I believe that default is about 10 minutes with 2
+  automatic retries, but I haven't checked it in the installed version. A hung
+  request could therefore hold a researcher until our 180s limit cuts in. For
+  the orchestrator, nothing cuts in.
+
+  Fix: I can add two limits:
+  1. An overall run limit in main.py, for example 8 minutes. Past it, the run
+     would stop and report that it ran out of time.
+  2. An explicit per-request timeout on the model objects, for example 90s. A
+     hung request would then fail quickly and be retried, instead of stalling
+     silently.
+
+  Want me to add both? The values are my guesses, and the real usage numbers
+  from the next live run would let us set them better.
+
+> okay add the limits
+
+  Searched for 1 pattern, ran 1 shell command (ctrl+o to expand)
+
+● The Responses API is a deepagents default, so I'll build the model through the
+  same profile helper and add the timeout on top. That way it doesn't change
+  how requests are sent.
+
+● Write(fin_agent\models.py)
+  ⎿  Wrote 31 lines to fin_agent\models.py
+      1 """Chat-model construction with an explicit per-request timeout.
+      2
+      3 Without one, a hung OpenAI request waits for the SDK default (abo
+        ut 10 minutes) and the run
+      4 looks stuck. The model is built through the same provider-profile
+         helper `create_deep_agent`
+      5 uses for model strings, so defaults such as the Responses API are
+         kept.
+      6 """
+      7 from __future__ import annotations
+     … +24 lines (ctrl+o to expand)
+
+● Update(fin_agent\agents\orchestrator.py)
+  ⎿  Added 1 line, removed 1 line
+      524      planner = ResearchPlanner()
+      525      save_report, verify_report = make_report_tools(planner, re
+           port_path, request_path)
+      526      return create_deep_agent(
+      527 -        model=model or _model_name(),                         
+      527 +        model=model or build_model(_model_name()),            
+      528          tools=[planner.submit_research_plan, save_report, veri
+           fy_report],
+      529          system_prompt=ORCHESTRATOR_PROMPT,
+      530          subagents=[get_researcher_subagent(model=researcher_mo
+           del)],
+
+● Update(fin_agent\agents\orchestrator.py)
+  ⎿  Added 1 line
+      31  from pydantic import BaseModel, Field
+      32  
+      33  from fin_agent.agents.researcher import get_backend, get_resear
+          cher_subagent
+      34 +from fin_agent.models import build_model                       
+      35  from fin_agent.report_check import check_report, request_questi
+          on
+      36  from fin_agent.research_guard import (
+      37      NOTES_DIR, NOTE_MAX_WORDS, TASK_CLOCK, TaskCancelled, TaskC
+          lock, count_words, task_timeout_seconds,
+
+● Update(fin_agent\agents\researcher.py)
+  ⎿  Added 1 line, removed 1 line
+      142          "description": RESEARCHER_DESCRIPTION,
+      143          "system_prompt": RESEARCHER_PROMPT,
+      144          "tools": [tavily_search, think_tool],
+      145 -        "model": model or _model_name(),                      
+      145 +        "model": model or build_model(_model_name()),         
+      146          "mode": "isolated",  # child sees only the brief; pare
+           nt sees only the final message
+      147          "middleware": [ResearchGuardMiddleware()],
+      148      }
+
+● Update(fin_agent\agents\researcher.py)
+  ⎿  Added 1 line, removed 1 line
+      151  def build_researcher_agent(model=None, backend=None):
+      152      """Run the researcher on its own (smoke tests). Same promp
+           t, tools and guard as the subagent."""
+      153      return create_deep_agent(
+      154 -        model=model or _model_name(),                         
+      154 +        model=model or build_model(_model_name()),            
+      155          tools=[tavily_search, think_tool],
+      156          system_prompt=RESEARCHER_PROMPT,
+      157          middleware=[ResearchGuardMiddleware()],
+
+● Update(fin_agent\agents\researcher.py)
+  ⎿  Added 1 line
+      16  from deepagents.backends import FilesystemBackend
+      17  from dotenv import load_dotenv
+      18  
+      19 +from fin_agent.models import build_model                       
+      20  from fin_agent.research_guard import (
+      21      NOTE_MAX_WORDS,
+      22      NOTES_DIR,
+
+● That diagnostic was probably raised before the import edit landed. I'll
+  confirm it by importing the module, then add the overall run limit to main.py.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The model carries the 90s timeout and one retry, and the Responses API default
+  is kept. Now the overall run limit.
+
+● Update(main.py)  ⎿  Added 33 lines, removed 12 lines
+       69      agent = build_orchestrator()
+       70      usage = UsageTracker()
+       71      print("Running agent (planning, researching, synthesizing 
+           - this can take a few minutes)...")
+       72 +    limit = run_time_limit_seconds()                          
+       73 +    box: dict = {}                                            
+       74 +                                                              
+       75 +    def invoke() -> None:                                     
+       76 +        try:                                                  
+       77 +            box["result"] = agent.invoke(                     
+       78 +                {"messages": [{"role": "user", "content": quer
+          +y}]},                                                         
+       79 +                # run_name/tags/metadata label the root trace 
+          +in LangSmith (no effect when tracing is off).                 
+       80 +                config={                                      
+       81 +                    "recursion_limit": 100,                   
+       82 +                    "run_name": "financial-comparison",       
+       83 +                    "tags": ["fin-agent-poc"],                
+       84 +                    "metadata": {"query": query[:300]},       
+       85 +                    "callbacks": [usage],                     
+       86 +                },                                            
+       87 +            )                                                 
+       88 +        except BaseException as exc:  # noqa: BLE001 - re-rais
+          +ed in the main thread below                                   
+       89 +            box["error"] = exc                                
+       90 +                                                              
+       91 +    # Daemon thread: when the overall limit hits, the process 
+          +can exit without waiting for it.                              
+       92 +    worker = threading.Thread(target=invoke, daemon=True, name
+          +="agent-run")                                                 
+       93 +    worker.start()                                            
+       94      try:
+       73 -        result = agent.invoke(                                
+       74 -            {"messages": [{"role": "user", "content": query}]}
+          -,                                                             
+       75 -            # run_name/tags/metadata label the root trace in L
+          -angSmith (no effect when tracing is off).                     
+       76 -            config={                                          
+       77 -                "recursion_limit": 100,                       
+       78 -                "run_name": "financial-comparison",           
+       79 -                "tags": ["fin-agent-poc"],                    
+       80 -                "metadata": {"query": query[:300]},           
+       81 -                "callbacks": [usage],                         
+       82 -            },                                                
+       83 -        )                                                     
+       84 -    finally:  # also on Ctrl+C / errors: show what was spent s
+          -o far                                                         
+       95 +        worker.join(limit or None)                            
+       96 +    finally:  # also on Ctrl+C: show what was spent so far    
+       97          print("\n" + usage.summary())
+       98 +    if worker.is_alive():                                     
+       99 +        notes = sorted(p.name for p in (RESEARCH_DIR / "notes"
+          +).glob("*.md"))                                               
+      100 +        print(f"\nRUN STOPPED: the overall time limit of {limi
+          +t:.0f}s was exceeded "                                        
+      101 +              "(RUN_TIME_LIMIT_SECONDS). No final report was s
+          +aved.")                                                       
+      102 +        print(f"Research notes produced so far: {notes or 'non
+          +e'}")                                                         
+      103 +        return 1                                              
+      104 +    if "error" in box:                                        
+      105 +        raise box["error"]                                    
+      106 +    result = box["result"]                                    
+      107      if tracing_enabled():
+      108          print(f"LangSmith trace sent to project '{os.environ.g
+           et('LANGSMITH_PROJECT', 'default')}'.")
+      109      print("\n" + result["messages"][-1].text)
+
+● Update(main.py)
+  ⎿  Added 12 lines
+      51      return 0 if ok else 1
+      52  
+      53  
+      54 +DEFAULT_RUN_TIME_LIMIT_SECONDS = 480                           
+      55 +                                                               
+      56 +                                                               
+      57 +def run_time_limit_seconds() -> float:                         
+      58 +    """RUN_TIME_LIMIT_SECONDS from env (default 480); 0 disable
+         +s the overall limit."""                                        
+      59 +    raw = os.environ.get("RUN_TIME_LIMIT_SECONDS", "").strip() 
+      60 +    try:                                                       
+      61 +        return max(0.0, float(raw)) if raw else DEFAULT_RUN_TIM
+         +E_LIMIT_SECONDS                                                
+      62 +    except ValueError:                                         
+      63 +        return DEFAULT_RUN_TIME_LIMIT_SECONDS                  
+      64 +                                                               
+      65 +                                                               
+      66  def reset_run_artifacts() -> None:
+      67      """Start each run with empty notes so the orchestrator can 
+          never read stale ones.
+      68      Final reports are named per company pair and are never dele
+          ted."""
+
+● Update(main.py)
+  ⎿  Added 1 line
+       9  import logging
+      10  import os
+      11  import sys
+      12 +import threading                                               
+      13  from importlib import metadata
+      14  
+      15  from dotenv import load_dotenv
+
+● Write(tests\test_limits.py)
+  ⎿  Wrote 44 lines to tests\test_limits.py
+       1 """Offline checks of the overall run limit and the per-request m
+         odel timeout."""
+       2 import time
+       3
+       4 import main
+       5 from fin_agent.models import build_model, request_timeout_second
+         s
+       6
+       7
+       8 class SlowAgent:
+     … +36 lines (ctrl+o to expand)
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● I added both limits, and all 56 tests pass. Nothing has been run live yet.
+
+  1. Per-request OpenAI timeout
+  - The new fin_agent/models.py builds each model with a request timeout of 90s
+    and one retry, down from the SDK's 2.
+  - You can change the timeout with OPENAI_REQUEST_TIMEOUT_SECONDS.
+  - Both the orchestrator and the researcher now use it.
+  - I checked the built model: it has timeout=90, retries=1 and the Responses
+    API still on.
+
+  2. Overall run limit
+  - In main.py, the agent now runs in a background thread with a time limit of
+    RUN_TIME_LIMIT_SECONDS. The default is 480s, and 0 turns it off.
+  - If the limit is hit, the process prints RUN STOPPED, the usage table, and
+    the notes saved so far. It then exits with code 1.
+  - It does not produce a final report from those notes. The orchestrator is the
+    part that stalled, so there is nothing safe to hand the notes to.
+  - The limit works even when the orchestrator itself hangs, which the per-task
+    limit can't cover.
+
+  Limits in effect now
+
+  ┌───────────────┬────────────────────────┬────────────────────────────────┐
+  │     What      │         Limit          │          Env variable          │
+  ├───────────────┼────────────────────────┼────────────────────────────────┤
+  │ One OpenAI    │ 90s, 1 retry           │ OPENAI_REQUEST_TIMEOUT_SECONDS │
+  │ request       │                        │                                │
+  ├───────────────┼────────────────────────┼────────────────────────────────┤
+  │ One           │ 180s (searches refused │                                │
+  │ researcher    │  after about 126s)     │ RESEARCH_TASK_TIMEOUT_SECONDS  │
+  │ task          │                        │                                │
+  ├───────────────┼────────────────────────┼────────────────────────────────┤
+  │ Whole run     │ 480s                   │ RUN_TIME_LIMIT_SECONDS         │
+  └───────────────┴────────────────────────┴────────────────────────────────┘
+
+  Interactions to know about
+  - A hung request can take up to about 180s to fail (90s, plus 1 retry at 90s).
+    That's the same as a researcher's 180s task limit, so a hung request mostly
+    won't get a retry before the task is cut off.
+  - The 480s total is tight. Research takes up to 180s, which leaves about 300s
+    for reading notes, writing the report and verifying. A first complete run
+    will show whether that is enough.
+
+  Tests:
+  - tests/test_limits.py uses a deliberately slow agent to check that the run is
+    stopped and the usage table is printed.
+  - It also checks that the defaults and the environment variables work.
+
+  The README and architecture.md aren't updated for the new variables, and
+  nothing is committed.
+
+  Send the query for the live run when you're ready. It will be the first real
+  test of all three limits and the usage table.
+
+> "Compare Apple and tesla based on recent revenue performance, profitability,
+  major financial and regulatory risks, and business outlook. Highlight the key
+  differences and cite the sources used."
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The Apple vs Tesla run has started in the background, with all three limits
+  active: 90s per OpenAI request, 180s per researcher task, and 480s for the
+  whole run. The 480s limit means it will end by itself within about 8 minutes.
+  The end-of-run usage table will give the first real call and token counts.
+
+  I'll inspect the results when it exits. If you ask, I can check progress in
+  the meantime.
+
+> check the progress
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The run started at 19:56:41 and it's now 19:58, about 1.5 minutes in. This run
+  is behaving differently from the earlier ones.
+
+  Research phase
+  - All 3 researcher tasks started this time: risks, outlook, and results
+    comparison. In the two earlier runs the third never did a search.
+  - The Tavily budget is fully used at 15 of 15, with 5 searches per task.
+  - Two notes are already saved, apple-tesla-business-outlook.md and
+    apple-tesla-financial-regulatory-risks.md. The third,
+    apple-tesla-results-comparison, has made its fifth search and its note is
+    probably being written.
+  - There have been 35 OpenAI calls so far, already more than the 26 the earlier
+    stalled runs made. That's because all 3 researchers worked.
+
+  Quality warning: every gap reason is "still missing", and the final searches
+  are still asking for primary Tesla figures. The notes will likely have gaps on
+  Tesla's results and regulatory actions, because the 5-search cap ended the
+  research before those were found.
+
+  No time-limit events have fired yet, and the orchestrator hasn't started
+  synthesis. I'll check again when it finishes, and the 480s limit ends it by
+  about 20:04:41 at the latest.
+
+● Background command "Live run on Apple vs Tesla with new limits" completed
+(exit code 0)
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The run finished cleanly in 2 minutes 30 seconds and saved the report. Now the
+  artifacts: original request, notes, and report.
+
+  Read 1 file, ran 2 shell commands (ctrl+o to expand)
+
+● The Apple vs Tesla run completed in 2 min 30 s and saved the report. None of
+  the three limits fired, so the time-limit and hang handling are still untested
+  live.
+
+  What worked
+
+  - Full pipeline: the request was saved, the plan was accepted, all 3
+    researchers ran, the orchestrator read all 3 notes, saved the report and
+    verified it. That is the first complete run in this session.
+  - Tavily: exactly 15 of 15 searches were used, 5 per task. Every search after
+    the first carried a gap_reason, and nothing was blocked or cached.
+  - Notes: they were 445, 381 and 471 words, under the 500-word cap. They have
+    the required sections and keep URLs. Researcher replies were 130–145 words,
+    so the orchestrator never saw the detailed findings in its context.
+  - Report: about 1,400 words, fuller than any single note. It has a
+    side-by-side table, a "Key differences" part per dimension, an
+    evidence-versus-interpretation split, and 15 numbered sources.
+  - Weak claims flagged: it marks secondary sources, calculated figures and
+    unverified items instead of inventing numbers.
+  - Usage table: 42 OpenAI calls and about 305k input tokens, 87% of them
+    cached. Output was only 14k tokens.
+  - No unfinished calls: nothing was left hanging.
+
+  What failed or is weak
+
+  - Core numbers are missing. Apple FY2025 revenue was not found, even though
+    the 10-K was in the sources, and the FY2024 revenue the note found wasn't
+    used. Annual revenue growth is "not verified" for both companies. Those are
+    the first things a revenue comparison needs.
+  - The data is stale. Today is 2026-11-07, but the financial comparison uses
+    the December 2025 quarter. The notes mention Q2 2026 results, and the
+    report's outlook section uses them. So the financials and the outlook cover
+    different periods, and the report admits it can't certify the figures as the
+    latest.
+  - Weak sources for headline numbers:
+    - Apple's quarterly revenue comes from a LinkedIn post.
+    - Tesla's net income comes from tavily.com/knowledge.
+    - Apple's earnings call comes from a third-party transcript site.
+  - Apple net income is derived oddly: it is comprehensive income minus other
+    comprehensive income, not read from the income statement. The result is
+    probably right, but it isn't what a reader would expect.
+  - Citation mess: the Apple FY2025 10-K appears twice, as [1] and [6], on
+    different hosts. Sources [14] and [15] are cited out of order.
+  - Verification adds little. verify_final_report said "no obvious gaps" even
+    though the report itself lists four substantial evidence gaps. It only
+    checks keywords, so it cannot see what is missing.
+
+  Unnecessary complexity
+
+  - think_tool: 15 of the 42 OpenAI calls (about 36%). It forces an extra model
+    round-trip after every search and adds little beyond the Tavily guard's own
+    gap_reason check.
+  - submit_research_plan and write_todos: these overlap. The prompt makes the
+    orchestrator plan twice, once to the guard and once mirrored into todos.
+  - The orchestrator prompt: it is about 1,355 words, with 11 steps, several of
+    which restate what the middleware already enforces.
+  - The keyword verifier: about 90 lines of regex that did not catch the real
+    problems.
+
+  Possible Deep Agents misuse
+
+  - Custom tools around built-ins: submit_research_plan duplicates what
+    write_todos is for, and save_final_report plus the report-writing logic sits
+    outside the filesystem backend.
+  - Planning is not doing the work: I did not check how the plan and todos were
+    used inside the run. The log doesn't show it.
+  - Behavior enforced in code instead of left to the framework: the middleware
+    does a lot. That is defensible for a POC, but it is the main source of
+    complexity.
+  - The time-limit wrapper: it uses a daemon thread inside a tool wrapper, which
+    works but isn't a framework feature.
+
+  Highest-priority fixes
+
+  1. Fix the missing core figures. Give the revenue task a direct query for the
+     Apple income statement or earnings release, so the key numbers come from
+     primary sources. This is about quality, not cost.
+  2. Make "recent" mean recent. Tell the researchers the current date and ask
+     for the latest reported quarter and fiscal year. Today the financials are
+     about 11 months old.
+  3. Remove think_tool. It would cut about 15 calls with no loss of quality. The
+     Tavily guard already requires a gap reason for repeat searches.
+  4. Replace the keyword verifier. An LLM check against the notes would catch
+     real gaps (missing revenue, stale period). That is a larger change, so I'd
+     do it after 1–3.
+
+  I'd do 1–3 together and rerun this query to compare. Do you want me to start?
+
+  One caveat on the earlier stalls: this run made no stall and no limit events,
+  but it also used the new 90s request timeout. That suggests the old stalls may
+  have been hung OpenAI requests. I can't confirm that, so I'd keep the time
+  limits and re-test them with a deliberately slow case.
+
+> <ide_opened_file>The user opened the file
+  d:\claude\deepagent-research-poc\outputs\apple-tesla_final_report.md in the
+  IDE. This may or may not be related to the current task.</ide_opened_file>
+
+> but think_tool is a component of the langchain's deep agent on which the
+  project is built on. So it will be necessary to showcase. Don't mak emake any
+  changes now and explain this
+
+● Let me check that against the installed package before answering.
+
+  Searched for 2 patterns (ctrl+o to expand)
+
+● I made no changes. I checked the installed deepagents 0.7.34 package, and
+  think_tool is not part of it. It is a tool we wrote in this project.
+
+  What the package provides
+  - deepagents ships write_todos (planning), ls, read_file, write_file,
+    edit_file, glob, grep (filesystem), and task (subagents).
+  - A search for think_tool in the package finds zero matches.
+  - think_tool is a pattern from LangChain's deep-research examples and
+    tutorials, where people add a "reflect after each search" tool by hand.
+    That's probably where the idea comes from, and it's a common companion to
+    Deep Agents. But the framework doesn't include it.
+
+  What it is here
+  - fin_agent/tools/think_tool.py is our code, passed to the researcher as an
+    extra tool.
+  - It is not an LLM call and not an agent. It takes the model's own assessment,
+    runs a few consistency checks, and replies SEARCH_AGAIN or STOP_SEARCHING.
+  - The reply is generated in code. The model call that makes the assessment is
+    the expensive part.
+
+  Why this matters for what I said earlier
+  - I called it unnecessary complexity and suggested removing it, because it
+    accounts for 15 of the 42 OpenAI calls. That cost measurement stands.
+  - Your concern is different: it is part of the project's design. It's in the
+    README's architecture diagram and in architecture.md, and it has its own
+    test file. If the POC is meant to show the "search, reflect, decide" loop,
+    then it has real demonstration value.
+
+  The tradeoff
+
+  ┌───────────────────────────────┬───────────────┬─────────────────────────┐
+  │                               │     Keep      │        Remove it        │
+  │                               │  think_tool   │                         │
+  ├───────────────────────────────┼───────────────┼─────────────────────────┤
+  │ Demonstrates reflection loop  │ Yes           │ No                      │
+  ├───────────────────────────────┼───────────────┼─────────────────────────┤
+  │ OpenAI calls per run          │ about 42      │ about 27                │
+  ├───────────────────────────────┼───────────────┼─────────────────────────┤
+  │ Gap-reasoning visible in the  │ Yes, explicit │ Only in the gap_reason  │
+  │ trace                         │               │ text                    │
+  └───────────────────────────────┴───────────────┴─────────────────────────┘
+
+  Middle options that keep the showcase and cut cost:
+  1. Call think_tool only before a second or later search, not after every
+     search. That would save about 3 of the 5 calls per researcher.
+  2. Keep it as is and instead lower the per-task search cap, so there are fewer
+     loops.
+
+  Nothing changes until you say so. If the showcase matters most, I'd keep it
+  and drop it from the fix list, then do the other fixes: primary-source
+  figures, recent periods, and the weak verifier. Do you want me to proceed on
+  that basis?
+
+> how will the reflection mechanism work if we remove think_tool? how will i
+  demonstarte it?
+
+● Without think_tool, there is still reflection, but it is less visible. Here is
+  how it would work and how you could demonstrate it.
+
+  Today (with think_tool)
+  1. The researcher runs a search.
+  2. The researcher calls think_tool in a separate model turn, filling in fields
+     for evidence, gap and conflict.
+  3. Code replies SEARCH_AGAIN or STOP_SEARCHING.
+  4. The researcher searches again or writes the note.
+
+  That is a distinct, named step you can point at in a trace. It costs one extra
+  model call per search.
+
+  Without it, reflection moves into the search call itself
+  - The Tavily guard already requires a gap_reason from the second search of a
+    task onward. The model must state what is missing before it is allowed to
+    search again, or the call is blocked with GAP_REASON_REQUIRED.
+  - That is real reflection, and the logs from the Apple run show it. Every
+    search after the first has a line like gap: Tesla annual results and
+    financial statements have not yet been found.
+  - It's enforced in code, not left to the prompt, so the model can't skip it.
+
+  What you lose: the structured fields (evidence sufficient, conflicts, second
+  search justified), the code-computed decision, and the separate step in the
+  trace. The gap statement would still be there.
+
+  A way to keep the showcase at no extra cost: move think_tool's fields into the
+  tavily_search arguments. For example, add evidence_so_far and
+  sources_conflict next to gap_reason. The same deterministic checks would run
+  inside the search call: a repeat search with no stated gap is rejected, and a
+  search with sufficient evidence is questioned. The trace would show the
+  reflection as part of each search's arguments, and there would be no extra
+  model round-trip. That would save about 15 calls per run while keeping the
+  "search, reflect, decide" idea.
+
+  How you'd demonstrate it in each case
+  - Keep think_tool: open the LangSmith trace and show the think_tool calls and
+    their Decision: lines.
+  - Fold it into the search call: show the -v log lines or the trace's
+    tavily_search arguments, each carrying the gap and conflict statements, plus
+    a blocked call as proof that it is enforced.
+  - Either way: tests/test_think_tool.py demonstrates the logic offline.
+
+  This is a recommendation and I haven't changed anything. I'd choose the folded
+  version if cost matters. Which do you want: keep as is, call think_tool only
+  before repeat searches, or fold it into tavily_search?
+
+> okay fold it to tavily search
+
+● Folding it in. First I'm finding everywhere think_tool is used, so I update
+  the code, prompts, tests and docs consistently.
+
+  Searched for 2 patterns, read 1 file, ran 1 shell command (ctrl+o to expand)
+
+● tavily_search is getting evidence_so_far and sources_conflict alongside
+  gap_reason, with the guard enforcing them on repeat searches. After that I'm
+  removing think_tool. · summary
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Now the researcher: tools list and prompt.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● I'll fix the step numbering in the prompt, update check_tavily.py, and update
+  the tests.
+
+  Ran 3 shell commands (ctrl+o to expand)
+
+● The hint edit didn't apply because the line indentation differed from my
+  pattern, and one test asserts a hard-coded step count. Fixing both.
+
+● Update(fin_agent\tools\tavily_search.py)
+  ⎿  Added 7 lines
+      255              if r.get("published_date"):  # only shown when the
+            source provides one
+      256                  lines.append(f"   Date: {r['published_date']}"
+           )
+      257              lines.append(f"   {snippet}")
+      258 +        left = self.limits.calls_per_task - task_call_no      
+      259 +        lines.append(                                         
+      260 +            "Next step: if these results answer the brief, STO
+          +P searching and write the note "                              
+      261 +            "(flag gaps as unverified). Search again only for 
+          +an important missing fact or "                                
+      262 +            f"conflicting figures ({left} left in this task) a
+          +nd then pass `evidence_so_far` plus "                         
+      263 +            "`gap_reason` and/or `sources_conflict`; report co
+          +nflicting figures with both sources."                         
+      264 +        )                                                     
+      265          return "\n".join(lines)
+      266  
+      267      @staticmethod
+
+● Update(tests\test_researcher.py)  ⎿  Added 1 line, removed 1 line
+      108      assert result.startswith(f"Notes file: {PATH}")
+      109      assert count_words(result) <= RESULT_MAX_WORDS + len("[tru
+           ncated to fit the word limit]".split())
+      110      assert len(fake.calls) == 1
+      111 -    assert researcher_model.idx == 6  # every scripted step ra
+          -n, i.e. errors let the model retry                            
+      111 +    assert researcher_model.idx == 5  # every scripted step ra
+          +n, i.e. errors let the model retry                            
+      112  
+      113  
+      114  # ---- focused tests (one behaviour each) --------------------
+           -----------------
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● All 53 tests pass. The README and architecture.md still describe think_tool,
+  so I'm updating those references to match.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● think_tool is now folded into tavily_search, and all 53 tests pass. I haven't
+  run it live yet.
+
+  How it works now
+  - First search of a task: no conditions, as before.
+  - Second search onward: the call must carry evidence_so_far (what the earlier
+    results established, with sources). It must also carry a gap_reason (the
+    important missing fact), a sources_conflict (figures that disagree), or
+    both.
+  - Enforcement: without these, the guard blocks the call, at no cost, with
+    REFLECTION_REQUIRED or GAP_REASON_REQUIRED.
+  - The old decision step: each search result now ends with a hint. It says to
+    stop and write the note if the brief is answered, and to search again only
+    for an important gap or conflict. This replaces the old
+    SEARCH_AGAIN/STOP_SEARCHING reply.
+  - Logging: every repeat search logs a Reflection | evidence=… | gap=… |
+    conflict=… line. That's your demonstration in the -v output and in the
+    LangSmith trace arguments.
+
+  Files changed
+  - tavily_search.py (fin_agent/tools/tavily_search.py): the new parameters, the
+    checks, the hint and the log line.
+  - researcher.py (fin_agent/agents/researcher.py): the tool list and a
+    rewritten prompt step 3.
+  - check_tavily.py (fin_agent/tools/check_tavily.py): the live check passes the
+    new argument.
+  - Deleted think_tool.py and test_think_tool.py.
+  - Tests: updated the Tavily, researcher, orchestrator and usage tests, and
+    added one new test for the conflict path and the hint.
+  - README and architecture.md: updated to match.
+
+  Expected effect: this should remove about 15 of the 42 OpenAI calls per run
+  and the context they added. That is an estimate until a live run confirms it.
+
+  Caveats
+  - The deterministic checks only test that the reflection exists and is long
+    enough. The old tool also flagged a case like "second search requested with
+    no gap". The new rule covers that case by blocking such a search. It cannot
+    judge whether a stated gap is genuinely important.
+  - The prompt is the only thing steering the model toward stopping early. Both
+    old runs used all 5 searches, so we should check that this changes in a live
+    run.
+  - Nothing is committed. The earlier time-limit, usage and request-timeout
+    changes are still uncommitted too.
+
+  Do you want me to run a live query to compare call counts against the
+  Apple/Tesla baseline of 42? Use the same Apple/Tesla query so the comparison
+  is fair.
+
+> <ide_selection>The user selected the lines 1 to 83 from
+  d:\claude\deepagent-research-poc\outputs\apple-tesla_final_report.md:
+  # Apple vs. Tesla: financial performance, risks and outlook
+
+  ## Executive Summary
+
+  - **Profitability:** Apple reported approximately $112.0 billion in FY2025
+  net income, calculated from its filing, versus approximately $3.86 billion
+  for Tesla, according to secondary data. The figures suggest Apple earned
+  roughly 29 times as much, but the Tesla figure’s precise accounting
+  definition was not verified. [1, 2]
+  - **Recent revenue:** Apple’s December 2025 quarter revenue was $143.8
+  billion, up 16% year over year, according to a secondary summary. Tesla’s
+  December 2025 quarter revenue was $24.901 billion; its year-over-year change
+  was not verified. The quarters overlap but have different fiscal labels and
+  end dates. [3, 4, 5]
+  - **Margin:** Calculated net margins for those quarters were approximately
+  29.3% for Apple and 3.4% for Tesla—a roughly 25.9-percentage-point
+  difference, subject to rounded and secondary-sourced figures. [3, 4, 5]
+  - **Risks:** Apple’s cited EU platform case produced an imposed €500 million
+  fine, which Apple appealed. Tesla disclosed $8.18 billion in debt principal
+  and faced a vehicle-safety investigation subsequently reported closed. These
+  are different types of exposure and cannot be ranked by cost from the
+  available evidence. [6–10]
+  - **Outlook:** Apple management pointed to iPhone-led growth in Greater
+  China; Tesla’s reported plans emphasize scaling Robotaxi and related
+  infrastructure. These are opportunities and management plans, not guaranteed
+  outcomes. [11–13]
+
+  ## Financial Performance
+
+  Apple’s FY2025 ended September 27, 2025; Tesla’s ended December 31, 2025.
+  Fiscal-year figures therefore are not precisely contemporaneous. [1, 6, 7]
+
+  | Measure | Apple | Tesla |
+  |---|---:|---:|
+  | FY2025 revenue | Not verified in research excerpts | $94.827bn, secondary
+  source [5] |
+  | FY2025 revenue growth | Not verified | Not verified |
+  | FY2025 net income | $112.010bn, calculated from filing [1] | Approximately
+  $3.86bn, secondary data [2] |
+  | FY2025 net margin | Not calculable from verified research excerpts |
+  Approximately 4.1%, calculated [2, 5] |
+  | December 2025 quarter revenue | $143.8bn; +16% year over year, secondary
+  summary [3] | $24.901bn; growth not verified, secondary report [5] |
+  | December 2025 quarter net income | $42.1bn, secondary report [4] |
+  $0.840bn, secondary report [5] |
+  | December 2025
+  ──── (41 lines hidden) ──────────────────────────────────────────────────────
+  AI strategy could not be independently confirmed from reliable primary
+  material in the notes. Tesla’s later developments beyond the cited Q2 2026
+  update were not ruled out. Forward-looking statements are uncertain.
+
+  ## Sources
+
+  1. Apple, FY2025 Form 10-K: https://s2.q4cdn.com/470004039/files/doc_financia
+  ls/2025/ar/_10-K-2025-As-Filed.pdf
+  2. Tavily, Tesla company data, secondary:
+  https://tavily.com/knowledge/company/jhbNmWAZiXj6
+  3. Julian Gonzales, Apple quarterly-results summary, LinkedIn, secondary:
+  https://www.linkedin.com/posts/julianm-gonzales_apple-today-announced-financi
+  al-results-for-activity-7422761804478574592--xvY
+  4. CNBC, Apple quarterly earnings, January 29, 2026:
+  https://www.cnbc.com/2026/01/29/apple-aapl-earnings-report-q1-2026.html
+  5. Teslarati, Tesla Q4 and FY2025 results, secondary:
+  https://www.teslarati.com/tesla-tsla-q4-and-fy-2025-earnings-results
+  6. Apple, FY2025 SEC Form 10-K: https://www.sec.gov/Archives/edgar/data/32019
+  3/000032019325000079/aapl-20250927.htm
+  7. Tesla, FY2025 SEC Form 10-K: https://www.sec.gov/Archives/edgar/data/13186
+  05/000162828026003952/tsla-20251231.htm
+  8. Tech Policy Press, analysis of EU Digital Markets Act decisions,
+  secondary: https://www.techpolicy.press/understanding-the-apple-and-meta-non-
+  compliance-decisions-under-the-digital-markets-act
+  9. EU Insider, report on Apple’s appeal, secondary: https://www.euinsider.eu/
+  news/apple-appeals-eu500-million-eu-fine-for-digital-markets-act-violation
+  10. Automotive Addicts, report on NHTSA investigation:
+  https://www.automotiveaddicts.com/104210/nhtsa-opens-probe-2-6-million-tesla-
+  vehicles-remote-park-summon-feature; Electric Vehicles, report of closure:
+  https://eletric-vehicles.com/tesla/nhtsa-closes-tesla-smart-summon-investigat
+  ion-into-2-6-million-vehicles
+  11. Alpha Spread, third-party transcript of Apple fiscal Q2 2026 earnings
+  call: https://www.alphaspread.com/security/nasdaq/aapl/investor-relations/ear
+  nings-call/q2-2026
+  12. Tesla, Q2 2026 shareholder update:
+  https://assets-ir.tesla.com/tesla-contents/IR/TSLA-Q2-2026-Update.pdf
+  13. CNBC, Tesla earnings and strategy, July 22, 2026:
+  https://www.cnbc.com/2026/07/22/tesla-tsla-q2-2026-earnings-report.html
+  14. Apple, fiscal Q1 2026 SEC Form 10-Q: https://www.sec.gov/Archives/edgar/d
+  ata/320193/000032019326000006/aapl-20251227.htm
+  15. Tesla, Q1 2026 update: https://ir.tesla.com/_flysystem/s3/sec/00016282802
+  6026551/tsla-20260422-gen.pdf
+
+
+  This may or may not be related to the current task.</ide_selection>
+
+> first limit the word limit of final report to 700 words max
+
+● Understood. I'll enforce the 700-word cap in code, the same way the notes are
+  capped, and not only in the prompt. First the places that currently say "no
+  word limit".
+
+  Searched for 1 pattern, ran 2 shell commands (ctrl+o to expand)
+
+● The cap is in. Let me check it against the existing Apple/Tesla report, which
+  is 1,403 words.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The final report is now capped at 700 words, enforced in code. I haven't run
+  it live yet, and all 53 tests pass.
+
+  What changed
+  - The cap: in orchestrator.py (fin_agent/agents/orchestrator.py),
+    save_final_report rejects any report over 700 words. All text counts,
+    including tables, headings and the source list.
+  - The rejection message: it says how many words to cut and what to keep
+    (source URLs, key differences, evidence gaps), and nothing is saved. The
+    agent shortens the report and saves again, the same way note-length
+    rejections work. I checked this against the old Apple/Tesla report: it was
+    rejected with "1403 words … cut at least 703".
+  - The prompt: it now says 700 words max, aim for about 600, and tells the
+    model to be dense, with no repeated caveats. It no longer asks for 800–1,500
+    words.
+  - Tests and docs: updated the length test, the README and architecture.md.
+
+  I also edited CLAUDE.md, which said "The final report has no word limit". That
+  would contradict your request, so it now says 700 words, changed at your
+  request. Revert that line if you'd rather keep CLAUDE.md as it was.
+
+  Things to watch in the next run
+  - Sources count toward the 700. A report with 15 long URLs spends a large part
+    of its budget on them, so I expect fewer sources and tighter analysis. If
+    that is too tight, I can exclude the Sources section from the count. Say if
+    you want that.
+  - Extra OpenAI calls. The model may need one or two extra save attempts to get
+    under the cap, and each is a full-report call. The prompt should reduce
+    that, but it's the first thing to check in the usage table.
+  - The time-limit disclosure. That sentence must now fit inside the 700 words
+    as well.
+
+  Nothing is committed. Want me to run the Apple/Tesla query again? That would
+  test the 700-word cap, the folded reflection and the new call counts together.
+
+> okay increase the limit to max 900 words
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The final report cap is now 900 words, and all 53 tests pass. A search for the
+  old "700" in the code, tests and docs finds no leftovers.
+
+  - Where: REPORT_MAX_WORDS = 900 in orchestrator.py
+    (fin_agent/agents/orchestrator.py). save_final_report rejects anything
+    longer and tells the agent how many words to cut.
+  - Prompt: it now says 900 words max and aim for about 750.
+  - Also updated: the test, README, architecture.md and CLAUDE.md, which now
+    says 900 words.
+
+  Nothing is committed. Want me to run the Apple/Tesla query now, to test the
+  900-word cap, the folded reflection and the new call counts together?
+
+> yes run the apple/tesla query now
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The Apple vs Tesla run has started in the background. It runs with the folded
+  reflection, the 900-word report cap, and all the time limits. The previous run
+  took 2 min 30 s, so I expect this one to take a similar time, with the 480s
+  cap as the maximum.
+
+  I'll compare it with the earlier baseline once it finishes. The comparison
+  covers OpenAI calls (the earlier run made 42), tokens, search use, report
+  length, and whether the reflection fields show up in the log.
+
+● Background command "Live Apple/Tesla run with all changes" completed (exit
+code 0)
+
+  Read 1 file, ran 1 shell command (ctrl+o to expand)
+
+● The run finished in about 2 minutes (20:19:48 to 20:21:47) with exit 0. It
+  used about a third fewer OpenAI calls than the previous Apple/Tesla run.
+
+  ┌────────────────────────────┬─────────────┬───────────┐
+  │                            │   Before    │    Now    │
+  ├────────────────────────────┼─────────────┼───────────┤
+  │ OpenAI calls               │ 42          │ 28        │
+  ├────────────────────────────┼─────────────┼───────────┤
+  │ Input tokens               │ 305k        │ 195k      │
+  ├────────────────────────────┼─────────────┼───────────┤
+  │ Output tokens              │ 14.3k       │ 10.9k     │
+  ├────────────────────────────┼─────────────┼───────────┤
+  │ Researcher calls (3 tasks) │ 36          │ 22        │
+  ├────────────────────────────┼─────────────┼───────────┤
+  │ Orchestrator calls         │ 6           │ 6         │
+  ├────────────────────────────┼─────────────┼───────────┤
+  │ Tavily searches            │ 15/15       │ 15/15     │
+  ├────────────────────────────┼─────────────┼───────────┤
+  │ Run time                   │ 2m30s       │ ~2m00s    │
+  ├────────────────────────────┼─────────────┼───────────┤
+  │ Final report               │ 1,403 words │ 713 words │
+  └────────────────────────────┴─────────────┴───────────┘
+
+  - Folded reflection works. All 10 repeat searches carried evidence_so_far and
+    a gap statement. They appear as Reflection | evidence=… | gap=… log lines,
+    with no blocked calls. Each reflection cites specific figures and URLs.
+  - The 900-word cap held. The report was saved on the first try at 713 words.
+    No Report rejected line appears, so there were no wasted save calls.
+  - Limits: none of the time-limit events fired, and no calls were left
+    unfinished.
+  - Notes: all three were 359–375 words, and the orchestrator read all three
+    before saving.
+
+  Quality is better
+  - Annual revenue and growth are now in the table for both companies: Apple
+    +6.4% and Tesla −2.9%. The previous report marked these as "not verified".
+  - Tesla's figures now come from its 10-K, including net income attributable to
+    common stockholders ($3.79bn), where before they came from a Tavily
+    aggregator page.
+  - I recomputed the ratios (4.4× revenue, 26.9% and 4.0% margins) and they
+    match.
+
+  Still weak
+  1. "Recent" is still stale. The researchers found Apple's FY2026 10-K (year
+     ended Sept 26, 2026) and Tesla's Q3 2026 update, but the headline table
+     still uses FY2025. The report admits Apple's FY2026 figures weren't
+     verified. The real fix is to tell the researchers the current date.
+  2. Some sources are poor. Apple's revenue comes from Yahoo Finance, and the
+     Tesla FSD investigation is cited to a personal-injury law firm's page.
+  3. Mixed periods. The "key differences" line compares Apple's Q1 FY2026 with
+     Tesla's Q2 2026.
+  4. The 5-search cap is still the real target. All three tasks used 5 of 5
+     again.
+  5. The verifier is still keyword-based. It said "no obvious gaps" although the
+     report lists several.
+
+  I haven't changed anything since the run. The two fixes with the best payoff
+  are giving the researchers today's date so "recent" means the latest filings,
+  and a source-quality instruction (primary sources for figures, and no law-firm
+  or blog pages as sources). Want me to apply those two?
+
+● The run finished in about 2 minutes (20:19:48 to 20:21:47) with exit 0. It
+  used about a third fewer OpenAI calls than the previous Apple/Tesla run.
+
+  ┌────────────────────────────┬─────────────┬───────────┐
+  │                            │   Before    │    Now    │
+  ├────────────────────────────┼─────────────┼───────────┤
+  │ OpenAI calls               │ 42          │ 28        │
+  ├────────────────────────────┼─────────────┼───────────┤
+  │ Input tokens               │ 305k        │ 195k      │
+  ├────────────────────────────┼─────────────┼───────────┤
+  │ Output tokens              │ 14.3k       │ 10.9k     │
+  ├────────────────────────────┼─────────────┼───────────┤
+  │ Researcher calls (3 tasks) │ 36          │ 22        │
+  ├────────────────────────────┼─────────────┼───────────┤
+  │ Orchestrator calls         │ 6           │ 6         │
+  ├────────────────────────────┼─────────────┼───────────┤
+  │ Tavily searches            │ 15/15       │ 15/15     │
+  ├────────────────────────────┼─────────────┼───────────┤
+  │ Run time                   │ 2m30s       │ ~2m00s    │
+  ├────────────────────────────┼─────────────┼───────────┤
+  │ Final report               │ 1,403 words │ 713 words │
+  └────────────────────────────┴─────────────┴───────────┘
+
+  - Folded reflection works. All 10 repeat searches carried evidence_so_far and
+    a gap statement. They appear as Reflection | evidence=… | gap=… log lines,
+    with no blocked calls. Each reflection cites specific figures and URLs.
+  - The 900-word cap held. The report was saved on the first try at 713 words.
+    No Report rejected line appears, so there were no wasted save calls.
+  - Limits: none of the time-limit events fired, and no calls were left
+    unfinished.
+  - Notes: all three were 359–375 words, and the orchestrator read all three
+    before saving.
+
+  Quality is better
+  - Annual revenue and growth are now in the table for both companies: Apple
+    +6.4% and Tesla −2.9%. The previous report marked these as "not verified".
+  - Tesla's figures now come from its 10-K, including net income attributable to
+    common stockholders ($3.79bn), where before they came from a Tavily
+    aggregator page.
+  - I recomputed the ratios (4.4× revenue, 26.9% and 4.0% margins) and they
+    match.
+
+  Still weak
+  1. "Recent" is still stale. The researchers found Apple's FY2026 10-K (year
+     ended Sept 26, 2026) and Tesla's Q3 2026 update, but the headline table
+     still uses FY2025. The report admits Apple's FY2026 figures weren't
+     verified. The real fix is to tell the researchers the current date.
+  2. Some sources are poor. Apple's revenue comes from Yahoo Finance, and the
+     Tesla FSD investigation is cited to a personal-injury law firm's page.
+  3. Mixed periods. The "key differences" line compares Apple's Q1 FY2026 with
+     Tesla's Q2 2026.
+  4. The 5-search cap is still the real target. All three tasks used 5 of 5
+     again.
+  5. The verifier is still keyword-based. It said "no obvious gaps" although the
+     report lists several.
+
+  I haven't changed anything since the run. The two fixes with the best payoff
+  are giving the researchers today's date so "recent" means the latest filings,
+  and a source-quality instruction (primary sources for figures, and no law-firm
+  or blog pages as sources). Want me to apply those two?
+
+> /compact
+  ⎿  Compacted
+  ⎿  Read outputs\apple-tesla_final_report.md (51 lines)
+  ⎿  Referenced file fin_agent\agents\orchestrator.py
+  ⎿  Referenced file tests\test_researcher.py
+  ⎿  Referenced file fin_agent\tools\tavily_search.py
+  ⎿  Referenced file tests\test_researcher.py
+
+> Act as a senior AI engineer reviewing this POC.
+
+  Do not rewrite the project yet.
+
+  Review the implementation against these criteria:
+
+  1. Is LangChain Deep Agents actually being used meaningfully?
+  2. Is the main agent dynamically planning research?
+  3. Is the research subagent genuinely reusable?
+  4. Is subagent context isolated appropriately?
+  5. Is the Deep Agents filesystem being used as externalized context?
+  6. Does the main agent actually read the research artifacts?
+  7. Is the Tavily six-call request limit enforced at application level?
+  8. Is the three-research-task ceiling enforced?
+  9. Is the two-call-per-task limit enforced?
+  10. Is the 500-word research-result limit enforced?
+  11. Can agents accidentally loop?
+  12. Are API keys protected?
+  13. Are errors handled reasonably?
+  14. Is the financial research useful?
+  15. Are source references preserved?
+  16. Is the architecture unnecessarily complicated for a one-day POC?
+  17. Which parts are Deep Agents capabilities versus custom application logic?
+
+  Classify findings as:
+  - Critical
+  - High
+  - Medium
+  - Low
+
+  Do not make changes yet.
+
+  Give me the smallest set of fixes needed before presenting this POC.
+
+● I'll check the current code against each criterion before classifying
+  anything.
+
+  Ran 4 shell commands (ctrl+o to expand)
+
+● Senior review of the POC
+
+  I made no changes. I read the orchestrator, researcher, Tavily guard, research
+  guard and main.py. I also ran the 53 tests (all pass) and looked at the last
+  live run's logs and output.
+
+  Your criteria 7 and 9 say six Tavily calls per request and two per task. The
+  code and CLAUDE.md use 15 per request and 5 per task, so I reviewed against
+  those. The caps are env-configurable up to those ceilings. If the presentation
+  will say "6 and 2", set TAVILY_MAX_CALLS_PER_REQUEST=6 and
+  TAVILY_MAX_CALLS_PER_TASK=2, or fix the wording. That mismatch is the first
+  thing I'd fix.
+
+  Verdict per criterion
+
+  #: 1
+  Criterion: Deep Agents used meaningfully
+  Verdict: Yes. create_deep_agent supplies write_todos, task, the filesystem
+    tools and subagent isolation.
+  ────────────────────────────────────────
+  #: 2
+  Criterion: Dynamic planning
+  Verdict: Mostly. The model chooses the tasks. Code only validates the plan
+    against the requested dimensions and the 3-task ceiling. It keeps both
+    submit_research_plan and write_todos, which overlap.
+  ────────────────────────────────────────
+  #: 3
+  Criterion: Reusable subagent
+  Verdict: Yes. One researcher spec, invoked with a different brief each time.
+  ────────────────────────────────────────
+  #: 4
+  Criterion: Context isolation
+  Verdict: Yes. Only a result truncated to 500 words crosses back to the
+    orchestrator. The log records "researcher result entered orchestrator
+    context: N words".
+  ────────────────────────────────────────
+  #: 5
+  Criterion: Filesystem as external context
+  Verdict: Yes. Notes are in outputs/research/notes/, and the backend is
+    sandboxed with virtual_mode.
+  ────────────────────────────────────────
+  #: 6
+  Criterion: Orchestrator reads the artifacts
+  Verdict: Yes, and it is enforced. save_final_report is refused until every
+    produced note has been read.
+  ────────────────────────────────────────
+  #: 7
+  Criterion: Request cap
+  Verdict: Enforced in code, behind a lock, in TavilyGuard.
+  ────────────────────────────────────────
+  #: 8
+  Criterion: Three-task ceiling
+  Verdict: Enforced, but only for distinct task_id values, which the model picks
+
+    (see M1).
+  ────────────────────────────────────────
+  #: 9
+  Criterion: Per-task cap
+  Verdict: Enforced. It is 5, not 2 (see above).
+  ────────────────────────────────────────
+  #: 10
+  Criterion: 500-word limit
+  Verdict: Enforced twice. A note over 500 words is rejected on save. The result
+
+    returned to the parent is hard-truncated.
+  ────────────────────────────────────────
+  #: 11
+  Criterion: Accidental loops
+  Verdict: Well covered. Search budgets, the plan gate, a 3-task ceiling,
+    per-task and run time limits, recursion_limit=100 and OpenAI timeouts all
+    bound a loop.
+  ────────────────────────────────────────
+  #: 12
+  Criterion: API keys
+  Verdict: Good. Keys come from the environment through dotenv. Tavily errors
+  are
+    redacted. .env.example holds names only.
+  ────────────────────────────────────────
+  #: 13
+  Criterion: Error handling
+  Verdict: Reasonable. Tavily failures return [TAVILY_ERROR] and still count
+    against the budget. Timeouts and stalls have defined behaviour.
+  ────────────────────────────────────────
+  #: 14
+  Criterion: Useful research
+  Verdict: Useful but not reliable (see H1 and H2).
+  ────────────────────────────────────────
+  #: 15
+  Criterion: Source references
+  Verdict: Preserved. Every figure carries a URL and secondary sources are
+    labelled.
+  ────────────────────────────────────────
+  #: 16
+  Criterion: Over-complicated
+  Verdict: Somewhat (see M3).
+  ────────────────────────────────────────
+  #: 17
+  Criterion: Framework vs custom
+  Verdict: See the table below.
+
+  Deep Agents versus custom logic
+
+  ┌────────────────────────────┬────────────────────────────────────────────┐
+  │  Deep Agents (framework)   │           Custom (this project)            │
+  ├────────────────────────────┼────────────────────────────────────────────┤
+  │ create_deep_agent, the     │ Tavily wrapper with budgets, cache, source │
+  │ agent loop                 │  tiering, reflection arguments             │
+  ├────────────────────────────┼────────────────────────────────────────────┤
+  │ write_todos planning       │ submit_research_plan plan gate             │
+  ├────────────────────────────┼────────────────────────────────────────────┤
+  │ task subagent delegation   │ Time-limit threads, TaskClock,             │
+  │ and isolation              │ TaskCancelled                              │
+  ├────────────────────────────┼────────────────────────────────────────────┤
+  │ FilesystemBackend and the  │ Note-format and size guards, result        │
+  │ file tools                 │ truncation                                 │
+  ├────────────────────────────┼────────────────────────────────────────────┤
+  │ Middleware hook            │ save_final_report, verify_final_report,    │
+  │ (AgentMiddleware)          │ 900-word cap, read-before-save             │
+  ├────────────────────────────┼────────────────────────────────────────────┤
+  │                            │ UsageTracker, build_model timeouts         │
+  └────────────────────────────┴────────────────────────────────────────────┘
+
+  Roughly 1,800 lines of custom code wrap a small amount of framework use. That
+  is fine for guardrails, but it means the demo story has to name which
+  behaviours come from Deep Agents.
+
+  Findings
+
+  Critical
+
+  None found.
+
+  High
+
+  - H1. The report can state a stale "latest" period as current. In the last run
+    both researchers found Apple's FY2026 10-K and Tesla's Q3 2026 results. The
+    headline table still used FY2025, and the report's own gaps paragraph
+    admits this. The prompts never tell the agent today's date, so "recent" is
+    left to chance.
+  - H2. Headline figures can come from weak sources. Apple's revenue was cited
+    to Yahoo Finance. The Tesla safety-investigation claim was cited to a
+    personal-injury law firm. Source tiering sorts the results but doesn't stop
+    a weak source from carrying a core number. The report does label these as
+    secondary, which is honest, but they shouldn't be the only support for the
+    main claim.
+
+  Medium
+
+  - M1. The task ceiling depends on model-chosen task_id strings. A model that
+    reuses one id gets more than its per-task share. It stays inside the 15-call
+    total, so the cost is bounded.
+  - M2. verify_final_report is a keyword regex check. It said "no obvious gaps"
+    on a report that lists several. It gives false assurance, so either describe
+    it honestly in the demo or drop it.
+  - M3. submit_research_plan and write_todos overlap. The agent writes two
+    plans. The custom one is the enforced one. This is the strongest
+    "unnecessary complexity" item.
+  - M4. The built-in general-purpose subagent is still available. Nothing checks
+    subagent_type == "researcher". It has no Tavily tool, so the risk is low,
+    but it could burn tokens.
+  - M5. The time limits have never fired in a live run. They are tested only
+    with scripted fakes. The abandoned worker thread keeps running after a
+    timeout, because Python can't kill it. That is acceptable for a POC but
+    should be disclosed.
+  - M6. The Tavily task_id cache and the budget are module-level singletons. Two
+    requests in one process rely on start_request() being called. main.py does
+    call it, and the process runs one request at a time.
+
+  Low
+
+  - L1. The new env vars (RESEARCH_TASK_TIMEOUT_SECONDS, RUN_TIME_LIMIT_SECONDS,
+    OPENAI_REQUEST_TIMEOUT_SECONDS) aren't fully documented.
+  - L2. outputs/ holds stale reports from earlier runs (final_report.md and
+    others), which could confuse a demo.
+  - L3. The earlier baseline runs stalled twice for an unknown cause. Later runs
+    didn't, but that isn't proof the timeouts fixed it.
+
+  Smallest set of fixes before presenting
+
+  1. Fix the 6/2 versus 15/5 wording (or set the env values to 6 and 2). This is
+     a one-line change and avoids being caught out on stage.
+  2. Give the researchers today's date and tell them to prefer the latest filed
+     period (H1). This is one prompt line and fixes the most visible quality
+     problem.
+  3. Add a source rule to the researcher prompt (H2): headline figures must come
+     from primary sources (filings, investor relations, regulators), and
+     law-firm or blog pages must not be cited as sources. This is also one
+     prompt line.
+  4. Reject subagent_type other than researcher in the existing task check (M4).
+     It is about five lines.
+  5. Clear stale files from outputs/ before the demo (L2). Also state in the
+     README that the time limits were verified only offline (M5).
+
+  Items M2 and M3 are worth fixing only if you have time. Otherwise, name them
+  as known simplifications when you present. Do you want me to apply fixes 1–4?
+
+> this is correct and the same limit has to be present : The code and CLAUDE.md
+  use 15 per request and 5 per task,.
+
+  check is it correct ?
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Yes, it is correct. The limits are 15 searches per request and 5 per task, and
+  I'll leave them as they are.
+
+  - Code: tavily_search.py:35-37 (fin_agent/tools/tavily_search.py#L35-L37) sets
+    the ceilings to 5 per task, 3 research tasks and 15 per request. Those are
+    also the defaults.
+  - Env vars: TAVILY_MAX_* can only lower these values, never raise them
+    (_env_int clamps at the ceiling).
+  - CLAUDE.md line 26: "15 per request ... up to 5 searches per research task".
+  - README and architecture.md: both say 5 / 3 / 15.
+  - Last live run: it used 15 of 15 searches. Each task used 5 of 5.
+
+  This corrects my earlier review. The "six calls per request and two per task"
+  in your criteria list doesn't match the project spec. I flagged it as a
+  mismatch, but the right fix is to the review criteria, not the code. I'm
+  dropping that fix from the list.
+
+  The remaining fixes are:
+  1. Tell the researchers today's date and to prefer the latest filed period.
+  2. Add a primary-source rule to the researcher prompt.
+  3. Reject any subagent_type other than researcher.
+  4. Clear the stale files in outputs/ and note in the README that the time
+     limits were tested offline only.
+
+  I haven't changed anything. Want me to apply these four?
+
+> <ide_opened_file>The user opened the file
+  d:\claude\deepagent-research-poc\.env.example in the IDE. This may or may not
+  be related to the current task.</ide_opened_file>
+> implement these changes and explain the improvemnets now:
+  2. Give the researchers today's date and tell them to prefer the latest filed
+  period (H1). This is one prompt line and fixes the most visible quality
+  problem.
+  3. Add a source rule to the researcher prompt (H2): headline figures must
+  come from primary sources (filings, investor relations, regulators), and
+  law-firm or blog pages must not be cited as sources. This is also one prompt
+  line.
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● I'll turn the prompt into a function so the date is computed on each run, then
+  add the two rules.
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● Update(fin_agent\agents\researcher.py)
+  ⎿  Added 12 lines, removed 1 line
+      38      "call it once per brief."
+      39  )
+      40  
+      41 -RESEARCHER_PROMPT = f"""\                                      
+      41 +def researcher_prompt(today: date | None = None) -> str:       
+      42 +    """The researcher system prompt, stamped with today's date 
+         +so "recent" has a meaning."""                                  
+      43 +    return _PROMPT_TEMPLATE.replace("{TODAY}", (today or date.t
+         +oday()).isoformat())                                           
+      44 +                                                               
+      45 +                                                               
+      46 +_PROMPT_TEMPLATE = f"""\                                       
+      47  You are a financial research analyst. You receive ONE focused r
+          esearch brief and
+      48  produce one short, source-backed research note. Work only on th
+          at brief.
+      49  
+      50 +Today's date is {{TODAY}}. "Recent" and "latest" mean the most 
+         +recent period each company has                                 
+      51 +ALREADY filed or reported as of this date - not the period you 
+         +happen to find first. Before                                   
+      52 +using a fiscal year or quarter as the headline, check whether a
+         + later annual report, 10-K,                                    
+      53 +10-Q or earnings release exists, and use the later one. If a la
+         +ter period exists but you could                                
+      54 +not retrieve its figures, say so in Caveats instead of presenti
+         +ng the older period as the latest.                             
+      55 +                                                               
+      56  ## Workflow
+      57  1. Pick a task_id: a short lowercase slug for the brief (e.g. "
+          jpm-bac-revenue-profit").
+      58     Use the SAME task_id for every tavily_search call and as the
+           note filename.
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● I made both changes to the researcher prompt in researcher.py
+  (fin_agent/agents/researcher.py). I haven't run a live query yet, so I can't
+  say whether the report improves. The test suite passes (54 tests, including a
+  new one).
+
+  What changed
+  - Today's date: the prompt is now built by researcher_prompt(), which inserts
+    the current date each time an agent is created. Before, "recent" had no
+    anchor, so the agent used whichever period it found first.
+  - Latest filed period:
+    - The prompt now defines "recent" or "latest" as the most recent period the
+      company has already filed or reported as of that date.
+    - Before using a fiscal year or quarter as the headline, the researcher must
+      check whether a later 10-K, 10-Q or earnings release exists, and use it.
+    - If a later period exists but its figures couldn't be retrieved, the
+      researcher says so in Caveats. It no longer presents the older period as
+      the latest.
+  - Primary sources for headline figures: if the first results for revenue, net
+    income, margins or growth are only secondary (Yahoo Finance, aggregators),
+    the researcher must spend a search on the company's own filing or earnings
+    release before settling.
+  - Banned source types: the prompt now forbids citing law-firm marketing pages,
+    personal-injury or lead-generation sites, blogs, forums and SEO content
+    farms. For a regulatory or legal matter, the researcher cites the regulator
+    (SEC, NHTSA, European Commission), the company's disclosure or reputable
+    press. If none is found, it marks the matter unverified.
+
+  Expected effect on the Apple/Tesla report
+  - The headline table should use Apple's FY2026 10-K, which the last run found
+    but didn't use. The two companies' periods should also line up better.
+  - The Yahoo Finance revenue citation and the Aguiar Injury Lawyers citation
+    should disappear, or the claim should be marked unverified.
+
+  Limits of the fix
+  - The search budget is unchanged at 5 per task and 15 per request. Chasing a
+    primary source uses one of those searches, so a task may have one fewer
+    search for other gaps.
+  - These are prompt rules, and the model can still ignore them. The only
+    code-level source control is the existing tiering, which sorts results but
+    doesn't block any domain.
+
+  Want me to rerun the Apple/Tesla query to check the effect? It costs about 28
+  OpenAI calls and 15 Tavily searches.
+
+> yes rerun it
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● The run is going in the background and should take about 2 minutes. I'll
+  compare it with the previous run when it finishes.
+
+● Background command "SP="C:/Users/Asus/AppData/Local/Temp/claude/cc740caaba86fb
+23/e195d284-0693-46a6-8a74-24eb75fd2f09/scratchpad" && cp
+outputs/apple-tesla_final_report.md $SP/apple-tesla_run4_prev.md && rm -f
+outputs/research/notes/apple-tesla-*.md && .venv/Scripts/python.exe main.py -v
+"Compare Apple and tesla based on recent revenue performance, profitability,
+major financial and regulatory risks, and business outlook. Highlight the key
+differences and cite the sources used." > $SP/run5.log 2>&1; echo exit=$?; tail
+-30 $SP/run5.log" completed (exit code 0)
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The rerun finished with exit 0. The sourcing fixes worked, but the report is
+  less useful than run 4. The new rules made the researchers chase primary
+  sources for Apple's FY2026 numbers, and they never retrieved them.
+
+  ┌──────────────────────┬───────┬────────────────────────────┐
+  │                      │ Run 4 │     Run 5 (new prompt)     │
+  ├──────────────────────┼───────┼────────────────────────────┤
+  │ OpenAI calls         │ 28    │ 27                         │
+  ├──────────────────────┼───────┼────────────────────────────┤
+  │ Input tokens         │ 195k  │ 179k                       │
+  ├──────────────────────┼───────┼────────────────────────────┤
+  │ Tavily searches      │ 15/15 │ 15/15                      │
+  ├──────────────────────┼───────┼────────────────────────────┤
+  │ Report words         │ 713   │ about 800                  │
+  ├──────────────────────┼───────┼────────────────────────────┤
+  │ Reflection log lines │ yes   │ 12, on every repeat search │
+  ├──────────────────────┼───────┼────────────────────────────┤
+  │ Time-limit events    │ none  │ none                       │
+  └──────────────────────┴───────┴────────────────────────────┘
+
+  What worked
+  - Latest period: the researchers now go for the newest filings. They pulled
+    Apple's FY2026 10-K, Apple's Q4 FY2026 release (November 2, 2026), and
+    Tesla's Q3 2026 10-Q and update.
+  - Source quality: the Aguiar Injury Lawyers citation is gone. Yahoo Finance is
+    no longer used for Apple's revenue. It appears once, for management
+    guidance, and the report labels that as secondary.
+  - Honesty: the report says plainly which Apple figures it could not retrieve,
+    and it does not fall back to old numbers.
+
+  What got worse
+  - Apple's revenue and profit are missing entirely. The comparison table has no
+    Apple revenue, growth, net income or margin, and the report says "a
+    numerical comparison is not possible". Run 4 had all of these (revenue
+    $416.16B, net margin 26.9%).
+  - Apple's regulatory risks are missing. The EU €500M fine from run 4 is gone.
+    The report says "specific Apple regulatory risks were not verified".
+  - The searches were spent badly. At least five went to
+    site:apple.com/newsroom/... queries and Apple IR pages. Tavily returned only
+    footers or snippets, with no income-statement tables. Tesla's Q3 2026
+    income figures were not retrieved either.
+  - The report cannot answer the question. The request asked for the key
+    differences, and the report says the evidence is insufficient to name a
+    financial leader.
+
+  Why this happened
+  The prompt now says to prefer the latest filed period and primary sources.
+  With only 5 searches per task, the researchers spent them chasing figures from
+  FY2026 filings that Tavily's basic search can't extract. Previously they
+  stopped at whatever source had the number. This is a trade-off in my prompt
+  change, not a bug in the guards.
+
+  Options
+  1. Soften the rule (my recommendation). Keep the date and the ban on weak
+     sites. Allow a reputable secondary source for a headline figure when the
+     primary one can't be extracted after one attempt, and label it. Also tell
+     the researchers to stop after two failed site: or IR-page queries.
+  2. Keep it strict. The report is more honest but often empty on the main
+     numbers.
+  3. Use fewer searches on risks and outlook so a task can spend more on the
+     core figures.
+
+  I changed nothing further. Want me to apply option 1 and rerun?
+
+> <ide_opened_file>The user opened the file
+  d:\claude\deepagent-research-poc\outputs\apple-tesla_final_report.md in the
+  IDE. This may or may not be related to the current task.</ide_opened_file>
+
+> yes apply and rerun
+
+● Update(fin_agent\agents\researcher.py)
+  ⎿  Added 9 lines, removed 3 lines
+       88    (Reuters, Bloomberg, FT, WSJ, CNBC) are appropriate; prefer 
+           them over blogs, forums or
+       89    aggregator sites. Note the publication date when given.
+       90  - Never present a secondary-source number as if it came from a
+            filing.
+       91 -- Headline figures (revenue, net income, margins, growth) must
+          - come from a primary source. If                               
+       92 -  the first results are only secondary (Yahoo Finance, aggrega
+          -tors), spend a search on the                                  
+       93 -  company's own filing or earnings release (sec.gov, investor-
+          -relations page) before settling.                              
+       91 +- Headline figures (revenue, net income, margins, growth) shou
+          +ld come from a primary source.                                
+       92 +  If the first results are only secondary (Yahoo Finance, aggr
+          +egators), try ONE more search for                             
+       93 +  the company's own filing or earnings release (sec.gov, inves
+          +tor-relations page). Search                                   
+       94 +  snippets often show only a page footer, not the financial ta
+          +bles. If that attempt still                                   
+       95 +  returns no figures, do NOT keep chasing it (no repeated `sit
+          +e:` or IR-page queries): use a                                
+       96 +  reputable secondary source for the figure, label it "seconda
+          +ry" in Caveats, and move on.                                  
+       97 +  A labelled secondary figure is better than no figure; a miss
+          +ing core figure makes the                                     
+       98 +  comparison useless.                                         
+       99 +- Spend at most 2 of your searches on any single document that
+          + is not yielding numbers.                                     
+      100  - Never cite law-firm marketing pages, personal-injury or lead
+           -generation sites, blogs,
+      101    forums or SEO content farms as sources. For a regulatory or 
+           legal matter, cite the regulator
+      102    (e.g. SEC, NHTSA, European Commission), the company's own di
+           sclosure, or reputable press;
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The rerun finished with exit 0. This report is the best of the three so far.
+  Apple's core figures are back and now come from its FY2026 10-K, and the weak
+  sources are gone.
+
+  ┌───────────────────┬─────────────────┬───────────────┬───────────────────┐
+  │                   │ Run 4 (before)  │    Run 5      │    Run 6 (now)    │
+  │                   │                 │   (strict)    │                   │
+  ├───────────────────┼─────────────────┼───────────────┼───────────────────┤
+  │ Apple revenue and │ FY2025, from    │ missing       │ FY2026, from      │
+  │  net income       │ Yahoo Finance   │               │ Apple's 10-K      │
+  ├───────────────────┼─────────────────┼───────────────┼───────────────────┤
+  │                   │ FY2025, from    │ FY2025, from  │ FY2025, from its  │
+  │ Tesla figures     │ its 10-K        │ its 10-K      │ 10-K, plus Q3     │
+  │                   │                 │               │ 2026              │
+  ├───────────────────┼─────────────────┼───────────────┼───────────────────┤
+  │ Law-firm source   │ yes             │ no            │ no                │
+  ├───────────────────┼─────────────────┼───────────────┼───────────────────┤
+  │ OpenAI calls      │ 28              │ 27            │ 27                │
+  ├───────────────────┼─────────────────┼───────────────┼───────────────────┤
+  │ Input tokens      │ 195k            │ 179k          │ 192k              │
+  ├───────────────────┼─────────────────┼───────────────┼───────────────────┤
+  │ Tavily searches   │ 15/15           │ 15/15         │ 15/15             │
+  ├───────────────────┼─────────────────┼───────────────┼───────────────────┤
+  │ Time-limit events │ none            │ none          │ none              │
+  └───────────────────┴─────────────────┴───────────────┴───────────────────┘
+
+  What improved
+  - Headline table: Apple's FY2026 revenue ($478.8bn, +15.1%), net income
+    ($132.2bn) and margin (27.6%) come from the SEC filing. Previously the
+    report used FY2025 numbers and said FY2026 was "not verified".
+  - Calculations: I rechecked the main ones and they match. Net margins are
+    27.6% and 4.1%, the revenue ratio is 5.0×, and the growth gap is 18.0
+    points. Tesla's net income is now consolidated ($3.855bn) and labelled as
+    such.
+  - Tesla recency: Q3 2026 appears as separate evidence, with revenue of
+    $28.05bn and a 2.9% margin. It is clearly marked as not comparable to
+    Apple's full year.
+  - Sources:
+    - The Tesla investigation is cited to Reuters, with its date.
+    - The Apple EU fine is not cited at all, so there are no law-firm or
+      injury-lawyer sources.
+    - One researcher explicitly skipped "prohibited law-firm summaries" in its
+      search results.
+  - Fiscal periods: the report states the mismatch up front (the year-ends are
+    nine months apart).
+
+  Still weak
+  1. Apple's regulatory risk is unverified. The researcher searched for the EU
+     Digital Markets Act fine (call 8), but nothing usable reached the note. Run
+     4 had this from secondary sources. The report now says "cannot be
+     adequately assessed". That is honest, but it leaves a gap in the
+     "regulatory risks" dimension.
+  2. Apple's outlook relies on Yahoo Finance. It is the only source for the
+     7–10% guidance, and the report labels it secondary.
+  3. Tesla's FY2026 is naturally not available, since its year hasn't ended. The
+     report handles this correctly.
+  4. All 15 searches were used again. The cap still binds, and the risks task is
+     the one that pays for it.
+
+  What the two prompt rules cost and bought
+  - They moved the headline figures to primary filings and removed the bad
+    sources.
+  - The strict version (run 5) lost the core numbers. The softened version
+    (run 6) kept them, so the "try once more, then label it secondary and move
+    on" rule appears to be working.
+  - The cost is thinner regulatory coverage for Apple.
+
+  Everything is uncommitted. Two fixes from the review list are still open:
+  rejecting any subagent_type other than researcher, and clearing stale files
+  from outputs/ before a demo. Want me to do those, or look at the Apple
+  regulatory gap first?
+
+> <ide_opened_file>The user opened the file
+  d:\claude\deepagent-research-poc\.env.example in the IDE. This may or may not
+  be related to the current task.</ide_opened_file>
+
+> no let it be. I tdon't think that will improve the model. if yes and then
+  tell me
+
+● You're right: neither of those two fixes would improve the model's output, so
+  I'm not making them.
+
+  - Rejecting any subagent_type other than researcher: this is a safeguard only.
+    In every live run the orchestrator used researcher, and the built-in
+    general-purpose subagent has no search tool, so there is nothing for it to
+    improve. It would only matter if the model started delegating to the wrong
+    subagent.
+  - Clearing stale files from outputs/: this is demo tidiness and has no effect
+    on quality. The old reports are just clutter.
+
+  Nothing else is pending. The only change since the review is the researcher
+  prompt (today's date, latest filed period, source rules), and I haven't
+  committed it. The only quality gap left is Apple's regulatory risk. Fixing it
+  would cost search budget from other tasks, so I'd leave it and describe it as
+  a known limit.

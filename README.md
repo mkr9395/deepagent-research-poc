@@ -40,7 +40,7 @@ stays complete**.
 ```mermaid
 flowchart TD
     U[User request] --> O["Orchestrator<br/>create_deep_agent<br/>write_todos · task · read_file"]
-    O -->|"task(brief) × ≤3<br/>isolated context"| R["Researcher subagent<br/>tavily_search · think_tool · write_file"]
+    O -->|"task(brief) × ≤3<br/>isolated context"| R["Researcher subagent<br/>tavily_search (with built-in reflection) · write_file"]
     R -->|"search ≤5 per task"| T[("Tavily<br/>budget-guarded")]
     R -->|"/notes/slug.md<br/>≤500 words, sourced"| FS[("outputs/research/notes/")]
     R -.->|"path + short summary only"| O
@@ -81,7 +81,7 @@ flowchart TD
 | Research notes | Written only to `/notes/<slug>.md`; at most 500 words; five required sections (question, findings, facts, sources, caveats); whole-file replacement only. |
 | Subagent reply | At most 500 words; always begins with the verified path of the note that was actually saved. |
 | Orchestrator | Cannot write research files itself; cannot save the report until every produced note has been read. |
-| Final report | Must be non-empty and contain source URLs. No word limit. |
+| Final report | Must be non-empty, contain source URLs and be at most 900 words (enforced in code). |
 | Filesystem | Agent file access is confined to `outputs/research/`; `.env` and other repository files are unreachable. |
 | Secrets | API keys are read from the environment only and are never logged or printed. |
 
@@ -170,7 +170,6 @@ investment advice.
 | `fin_agent/agents/researcher.py` | Reusable researcher subagent and sandboxed filesystem backend |
 | `fin_agent/research_guard.py` | Middleware enforcing note and reply limits |
 | `fin_agent/tools/tavily_search.py` | Budgeted Tavily wrapper with caching and logging |
-| `fin_agent/tools/think_tool.py` | Structured reflection step that decides whether another search is justified |
 | `fin_agent/report_check.py` | Checks the saved report against the original request |
 | `fin_agent/request.py` | Request archiving |
 | `examples/plan_demo.py` | Planning-only demo showing how task decomposition adapts to the request |

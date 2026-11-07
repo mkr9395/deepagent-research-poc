@@ -74,7 +74,6 @@ def test_researcher_via_task_enforces_limits(tmp_path, monkeypatch, caplog):
     too_long = GOOD_NOTE + "word " * (NOTE_MAX_WORDS + 50)
     researcher_model = ScriptedModel(script=[
         call("tavily_search", query="JPM BAC revenue 2025", task_id="jpm-bac-revenue"),
-        call("think_tool", evidence_summary="found", evidence_sufficient=True),
         call("write_file", file_path=PATH, content=too_long),   # rejected by code
         call("edit_file", file_path=PATH, old_string="a", new_string="b"),  # disabled
         call("write_file", file_path=PATH, content=GOOD_NOTE),  # accepted
@@ -109,7 +108,7 @@ def test_researcher_via_task_enforces_limits(tmp_path, monkeypatch, caplog):
     assert result.startswith(f"Notes file: {PATH}")
     assert count_words(result) <= RESULT_MAX_WORDS + len("[truncated to fit the word limit]".split())
     assert len(fake.calls) == 1
-    assert researcher_model.idx == 6  # every scripted step ran, i.e. errors let the model retry
+    assert researcher_model.idx == 5  # every scripted step ran, i.e. errors let the model retry
 
 
 # ---- focused tests (one behaviour each) -------------------------------------
@@ -127,8 +126,7 @@ def run_researcher(tmp_path, monkeypatch, write_steps, final_text, briefs=1):
     for i in range(briefs):
         researcher_scripts.append([
             call("tavily_search", query=f"query {i}", task_id=f"task-{i}"),
-            call("think_tool", evidence_summary="found", evidence_sufficient=True),
-            *[call("write_file", file_path=p, content=c) for p, c in write_steps[i]],
+                *[call("write_file", file_path=p, content=c) for p, c in write_steps[i]],
             AIMessage(content=final_text),
         ])
         parent_script.append(call("task", description=f"brief {i}", subagent_type="researcher"))
@@ -241,8 +239,7 @@ def run_flow(tmp_path, monkeypatch, reply, write=True):
             {"title": "t", "url": "https://sec.gov/a", "content": (SEARCH_MARK + " ") * 100}]}
 
     monkeypatch.setattr(ts, "_guard", TavilyGuard(Limits(), search_fn=search))
-    steps = [call("tavily_search", query="q", task_id="t1"),
-             call("think_tool", evidence_summary="s", evidence_sufficient=True)]
+    steps = [call("tavily_search", query="q", task_id="t1")]
     if write:
         steps.append(call("write_file", file_path=PATH, content=GOOD_NOTE + NOTE_MARK))
     sub = SpyModel(script=steps + [AIMessage(content=reply)], seen=[])
@@ -315,3 +312,13 @@ def test_context_handoff_is_logged(tmp_path, monkeypatch, caplog):
     result = [m for m in out["messages"] if getattr(m, "name", "") == "task"][0].content
     assert result.startswith(f"Notes file: {PATH}")
     assert any("Notes file: " + PATH in l for l in lines if "reply text" in l)
+
+
+def test_prompt_has_todays_date_and_source_rules():
+    from datetime import date
+
+    from fin_agent.agents.researcher import researcher_prompt
+
+    p = researcher_prompt(date(2026, 11, 7))
+    assert "Today's date is 2026-11-07" in p and "{TODAY}" not in p
+    assert "law-firm" in p and "later annual report" in p

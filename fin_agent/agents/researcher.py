@@ -10,12 +10,14 @@ only a short summary + the note path goes back to the parent.
 from __future__ import annotations
 
 import os
+from datetime import date
 from pathlib import Path
 
 from deepagents import create_deep_agent
 from deepagents.backends import FilesystemBackend
 from dotenv import load_dotenv
 
+from fin_agent.models import build_model
 from fin_agent.research_guard import (
     NOTE_MAX_WORDS,
     NOTES_DIR,
@@ -23,7 +25,6 @@ from fin_agent.research_guard import (
     ResearchGuardMiddleware,
 )
 from fin_agent.tools.tavily_search import tavily_search
-from fin_agent.tools.think_tool import think_tool
 
 RESEARCH_DIR = Path(__file__).resolve().parents[2] / "outputs" / "research"
 DEFAULT_MODEL = "gpt-6.1-terra"
@@ -37,9 +38,20 @@ RESEARCHER_DESCRIPTION = (
     "call it once per brief."
 )
 
-RESEARCHER_PROMPT = f"""\
+def researcher_prompt(today: date | None = None) -> str:
+    """The researcher system prompt, stamped with today's date so "recent" has a meaning."""
+    return _PROMPT_TEMPLATE.replace("{TODAY}", (today or date.today()).isoformat())
+
+
+_PROMPT_TEMPLATE = f"""\
 You are a financial research analyst. You receive ONE focused research brief and
 produce one short, source-backed research note. Work only on that brief.
+
+Today's date is {{TODAY}}. "Recent" and "latest" mean the most recent period each company has
+ALREADY filed or reported as of this date - not the period you happen to find first. Before
+using a fiscal year or quarter as the headline, check whether a later annual report, 10-K,
+10-Q or earnings release exists, and use the later one. If a later period exists but you could
+not retrieve its figures, say so in Caveats instead of presenting the older period as the latest.
 
 ## Workflow
 1. Pick a task_id: a short lowercase slug for the brief (e.g. "jpm-bac-revenue-profit").
@@ -54,12 +66,18 @@ produce one short, source-backed research note. Work only on that brief.
    - Do not pack several fiscal periods or metrics into one query.
    - You have at most 5 searches for the whole brief: use them for the companies and gaps that
      matter most (e.g. search 1 company A, search 2 company B, then the biggest remaining gaps).
-3. Call think_tool on the result. Follow its decision.
-4. Search again ONLY if think_tool says SEARCH_AGAIN (an important gap or conflicting
-   figures). Pass its gap_reason. Never more than 5 searches for the brief; usually 2-4.
-   If a tool returns [TAVILY_BLOCKED], do not retry - write the note from what you have.
-5. Write the note with write_file to {NOTES_DIR}/<task_id>.md.
-6. Reply to the parent (format below). Do not call other tools after writing the note.
+3. Read the results and REFLECT before any further search. Reflection is part of the next
+   search call, not a separate tool: from the 2nd search of the brief onward pass
+   - `evidence_so_far`: what the earlier results already established, with sources;
+   - `gap_reason`: the important missing fact that matters to the comparison (not a nice-to-have);
+   - `sources_conflict` (instead of or besides the gap): figures that disagree and which sources.
+   If the evidence already answers the brief, STOP and write the note. Never more than 5
+   searches for the brief; usually 2-4. Report conflicting figures with both sources and flag
+   them as unverified unless resolved.
+   If a tool returns [TAVILY_BLOCKED] or [TIME_LIMIT], do not retry - write the note from what
+   you have immediately (you have a time limit; be quick).
+4. Write the note with write_file to {NOTES_DIR}/<task_id>.md.
+5. Reply to the parent (format below). Do not call other tools after writing the note.
 
 ## Source priority
 - Financial figures (revenue, income, margins, cash flow, risk factors): prefer authoritative
@@ -70,6 +88,19 @@ produce one short, source-backed research note. Work only on that brief.
   (Reuters, Bloomberg, FT, WSJ, CNBC) are appropriate; prefer them over blogs, forums or
   aggregator sites. Note the publication date when given.
 - Never present a secondary-source number as if it came from a filing.
+- Headline figures (revenue, net income, margins, growth) should come from a primary source.
+  If the first results are only secondary (Yahoo Finance, aggregators), try ONE more search for
+  the company's own filing or earnings release (sec.gov, investor-relations page). Search
+  snippets often show only a page footer, not the financial tables. If that attempt still
+  returns no figures, do NOT keep chasing it (no repeated `site:` or IR-page queries): use a
+  reputable secondary source for the figure, label it "secondary" in Caveats, and move on.
+  A labelled secondary figure is better than no figure; a missing core figure makes the
+  comparison useless.
+- Spend at most 2 of your searches on any single document that is not yielding numbers.
+- Never cite law-firm marketing pages, personal-injury or lead-generation sites, blogs,
+  forums or SEO content farms as sources. For a regulatory or legal matter, cite the regulator
+  (e.g. SEC, NHTSA, European Commission), the company's own disclosure, or reputable press;
+  if none was found, say the matter is unverified rather than citing a weak site.
 
 ## What to look for (follow the brief; do not widen its scope)
 - Financial performance: revenue and revenue growth (state the period compared, e.g. YoY),
@@ -139,9 +170,9 @@ def get_researcher_subagent(model=None) -> dict:
     return {
         "name": "researcher",
         "description": RESEARCHER_DESCRIPTION,
-        "system_prompt": RESEARCHER_PROMPT,
-        "tools": [tavily_search, think_tool],
-        "model": model or _model_name(),
+        "system_prompt": researcher_prompt(),
+        "tools": [tavily_search],
+        "model": model or build_model(_model_name()),
         "mode": "isolated",  # child sees only the brief; parent sees only the final message
         "middleware": [ResearchGuardMiddleware()],
     }
@@ -150,9 +181,9 @@ def get_researcher_subagent(model=None) -> dict:
 def build_researcher_agent(model=None, backend=None):
     """Run the researcher on its own (smoke tests). Same prompt, tools and guard as the subagent."""
     return create_deep_agent(
-        model=model or _model_name(),
-        tools=[tavily_search, think_tool],
-        system_prompt=RESEARCHER_PROMPT,
+        model=model or build_model(_model_name()),
+        tools=[tavily_search],
+        system_prompt=researcher_prompt(),
         middleware=[ResearchGuardMiddleware()],
         backend=backend or get_backend(),
     )

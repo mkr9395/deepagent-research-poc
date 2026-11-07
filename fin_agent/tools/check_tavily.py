@@ -52,7 +52,8 @@ def main() -> int:
     for i in range(lim.calls_per_request):
         task = f"check-{i // lim.calls_per_task + 1}"
         gap = "" if i % lim.calls_per_task == 0 else "Live check: confirming a second search is allowed with a reason"
-        out = tavily_search.invoke({"query": QUERIES[i], "task_id": task, "gap_reason": gap})
+        out = tavily_search.invoke({"query": QUERIES[i], "task_id": task, "gap_reason": gap,
+                                    "evidence_so_far": "" if not gap else "Live check: first search returned results"})
         ok = out.startswith("Search results for") and "URL: http" in out
         check(f"search {i + 1}/{lim.calls_per_request} returned results", ok, "" if ok else out[:200])
 
@@ -62,7 +63,8 @@ def main() -> int:
 
     print("\n4. Limit respected")
     out = tavily_search.invoke({"query": "one more search that must be refused", "task_id": "check-extra",
-                                "gap_reason": "Live check: this call must be blocked"})
+                                "gap_reason": "Live check: this call must be blocked",
+                                "evidence_so_far": "Live check: budget already used up"})
     check("extra call blocked", "[TAVILY_BLOCKED:REQUEST_BUDGET_EXHAUSTED]" in out)
     check("blocked call did not increase counter", guard.total_calls == lim.calls_per_request,
           f"{guard.total_calls}/{lim.calls_per_request}")
