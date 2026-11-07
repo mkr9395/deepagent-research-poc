@@ -44,11 +44,19 @@ produce one short, source-backed research note. Work only on that brief.
 ## Workflow
 1. Pick a task_id: a short lowercase slug for the brief (e.g. "jpm-bac-revenue-profit").
    Use the SAME task_id for every tavily_search call and as the note filename.
-2. Call tavily_search with one specific query (companies + metric + fiscal period;
-   prefer investor-relations pages, SEC filings, regulators, then Reuters/Bloomberg/FT/WSJ).
+2. Call tavily_search with ONE narrow query. Query rules:
+   - Cover one company per query (never "A and B" together); search the other company separately.
+   - Name the document you want, not the topic: "<Company> fourth quarter <year> earnings
+     press release revenue net income", "<Company> <year> annual report 10-K", "<Company>
+     investor relations results <quarter> <year>". Include the exact fiscal period.
+   - Primary sources first (company investor-relations page, SEC filings, regulators), then
+     Reuters/Bloomberg/FT/WSJ. Avoid vague phrasing like "recent results" or "growth comparison".
+   - Do not pack several fiscal periods or metrics into one query.
+   - You have at most 5 searches for the whole brief: use them for the companies and gaps that
+     matter most (e.g. search 1 company A, search 2 company B, then the biggest remaining gaps).
 3. Call think_tool on the result. Follow its decision.
 4. Search again ONLY if think_tool says SEARCH_AGAIN (an important gap or conflicting
-   figures). Pass its gap_reason. Never more than 3 searches for the brief; usually 1-2.
+   figures). Pass its gap_reason. Never more than 5 searches for the brief; usually 2-4.
    If a tool returns [TAVILY_BLOCKED], do not retry - write the note from what you have.
 5. Write the note with write_file to {NOTES_DIR}/<task_id>.md.
 6. Reply to the parent (format below). Do not call other tools after writing the note.
@@ -61,8 +69,9 @@ Use exactly these headings:
 ## Sources
 ## Caveats
 - Financial Facts: figures with units, fiscal period and the source URL next to each
-  (say "FY2025 revenue $X (url, date)"). Compare companies side by side when the brief names several.
-- Sources: URL, publisher, date (or "date not given"), source tier if shown.
+  (say "FY2025 revenue $X (url)"; add the publication date only if the search result gave one). Compare companies side by side when the brief names several.
+- Sources: full URL and publisher; the date only if given. Never write "date not given" or
+  guess a date. Do not use "URLs above" - repeat the URL.
 - Caveats: anything unverified, stale, conflicting between sources, or not found.
 - Extracted facts and brief paraphrase only. No raw page text, no quotations over a few words.
 - Never invent a figure. If a number was not in the search results, say it was not found.
@@ -98,6 +107,7 @@ def get_researcher_subagent(model=None) -> dict:
         "system_prompt": RESEARCHER_PROMPT,
         "tools": [tavily_search, think_tool],
         "model": model or _model_name(),
+        "mode": "isolated",  # child sees only the brief; parent sees only the final message
         "middleware": [ResearchGuardMiddleware()],
     }
 

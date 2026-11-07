@@ -221,3 +221,97 @@ def test_same_researcher_is_reusable_for_two_briefs(tmp_path, monkeypatch):
     assert len(results) == 2
     assert (tmp_path / "notes" / "jpm-bac-revenue.md").exists()
     assert (tmp_path / "notes" / "jpm-bac-risk.md").exists()
+
+
+# ---- context flow: parent <-> researcher ------------------------------------
+SEARCH_MARK, NOTE_MARK = "SEARCHDUMPMARKER", "NOTEBODYMARKER"
+
+
+class SpyModel(ScriptedModel):
+    seen: list = []
+
+    def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+        self.seen.append(list(messages))
+        return super()._generate(messages, stop, run_manager, **kwargs)
+
+
+def run_flow(tmp_path, monkeypatch, reply, write=True):
+    def search(q):
+        return {"query": q, "results": [
+            {"title": "t", "url": "https://sec.gov/a", "content": (SEARCH_MARK + " ") * 100}]}
+
+    monkeypatch.setattr(ts, "_guard", TavilyGuard(Limits(), search_fn=search))
+    steps = [call("tavily_search", query="q", task_id="t1"),
+             call("think_tool", evidence_summary="s", evidence_sufficient=True)]
+    if write:
+        steps.append(call("write_file", file_path=PATH, content=GOOD_NOTE + NOTE_MARK))
+    sub = SpyModel(script=steps + [AIMessage(content=reply)], seen=[])
+    parent = ScriptedModel(script=[
+        call("task", description="BRIEF: research X for JPM", subagent_type="researcher"),
+        AIMessage(content="done")])
+    agent = create_deep_agent(
+        model=parent, subagents=[get_researcher_subagent(model=sub)],
+        backend=FilesystemBackend(root_dir=tmp_path, virtual_mode=True))
+    out = agent.invoke({"messages": [{"role": "user", "content": "compare JPM and BAC"}]})
+    return out, sub
+
+
+def test_subagent_sees_only_the_brief(tmp_path, monkeypatch):
+    _, sub = run_flow(tmp_path, monkeypatch, "ok")
+    first_call = sub.seen[0]
+    humans = [m for m in first_call if m.type == "human"]
+    assert [m.content for m in humans] == ["BRIEF: research X for JPM"]  # not the user's request
+    assert not any(m.type in ("ai", "tool") for m in first_call)  # no parent history
+
+
+def test_parent_gets_only_the_final_message_not_the_research(tmp_path, monkeypatch):
+    out, _ = run_flow(tmp_path, monkeypatch, f"Notes file: {PATH}\n- Revenue up 5%")
+    parent_text = " ".join(str(m.content) for m in out["messages"])
+    assert SEARCH_MARK not in parent_text   # raw search results stay in the child
+    assert NOTE_MARK not in parent_text     # note body stays on disk
+    assert (tmp_path / "notes" / "jpm-bac-revenue.md").read_text(encoding="utf-8").count(NOTE_MARK) == 1
+    assert sorted(out.keys()) == ["messages"]  # no other state leaks back
+    task_msgs = [m for m in out["messages"] if getattr(m, "name", "") == "task"]
+    assert len(task_msgs) == 1 and task_msgs[0].content == f"Notes file: {PATH}\n- Revenue up 5%"
+
+
+def test_note_reference_is_added_when_model_forgets_it(tmp_path, monkeypatch):
+    out, _ = run_flow(tmp_path, monkeypatch, "- Revenue up 5% (sec.gov)")
+    result = [m for m in out["messages"] if getattr(m, "name", "") == "task"][0].content
+    assert result.splitlines()[0] == f"Notes file: {PATH}"
+    assert "Revenue up 5%" in result
+
+
+def test_wrong_model_written_path_is_replaced_by_the_real_one(tmp_path, monkeypatch):
+    out, _ = run_flow(tmp_path, monkeypatch, "Notes file: /notes/made-up.md\n- finding")
+    result = [m for m in out["messages"] if getattr(m, "name", "") == "task"][0].content
+    assert f"Notes file: {PATH}" in result and "made-up" not in result
+
+
+def test_not_saved_is_reported_when_no_note_was_written(tmp_path, monkeypatch):
+    out, _ = run_flow(tmp_path, monkeypatch, "Notes file: /notes/ghost.md\n- finding", write=False)
+    result = [m for m in out["messages"] if getattr(m, "name", "") == "task"][0].content
+    assert result.startswith("Notes file: NOT SAVED") and "ghost" not in result
+
+
+def test_researcher_spec_is_isolated():
+    assert get_researcher_subagent(model=ScriptedModel(script=[]))["mode"] == "isolated"
+
+
+def test_context_handoff_is_logged(tmp_path, monkeypatch, caplog):
+    """The two log lines show exactly what moves between parent and child."""
+    with caplog.at_level("INFO", logger="fin_agent.context"):
+        out, _ = run_flow(tmp_path, monkeypatch, "- Revenue up 5% (sec.gov)")
+    lines = [r.getMessage() for r in caplog.records if r.name == "fin_agent.context"]
+    down = [l for l in lines if l.startswith("PARENT -> RESEARCHER")]
+    up = [l for l in lines if l.startswith("RESEARCHER -> PARENT | reply ") and "words" in l.split("|")[1]]
+    assert len(down) == 1 and len(up) == 1
+    assert "1 message(s) received" in down[0] and "BRIEF: research X for JPM" in down[0]
+    assert f"note={PATH}" in up[0] and "stays on disk" in up[0]
+    assert "1 searches" in up[0]
+    # the raw search text and note body are never printed in the context log
+    assert SEARCH_MARK not in " ".join(lines) and NOTE_MARK not in " ".join(lines)
+    # and the logged reply text is what the parent really received
+    result = [m for m in out["messages"] if getattr(m, "name", "") == "task"][0].content
+    assert result.startswith(f"Notes file: {PATH}")
+    assert any("Notes file: " + PATH in l for l in lines if "reply text" in l)

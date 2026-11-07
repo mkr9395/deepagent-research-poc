@@ -29,7 +29,7 @@ Status legend: **[built]** exists and is tested, **[planned]** not implemented y
  │ reused per brief; isolated context)          │
  │  tavily_search · think_tool · write_file     │
  └───────┬──────────────────────┬───────────────┘
-         │ search (≤3/task)     │ write_file /notes/<slug>.md  (≤500 words)
+         │ search (≤5/task)     │ write_file /notes/<slug>.md  (≤500 words)
          ▼                      ▼
    TavilyGuard ──▶ Tavily    outputs/research/notes/<slug>.md
                                    ▲
@@ -62,9 +62,9 @@ live on disk.
 All limits live in code, so a misbehaving model gets a `[TAVILY_BLOCKED:<code>]` message
 instead of a network call.
 
-- **Limits** (env can lower, never raise): 3 searches per task, 3 research tasks and 9
+- **Limits** (env can lower, never raise): 5 searches per task, 3 research tasks and 15
   searches per request. A "task" is the `task_id` the model passes.
-- **Gap reason:** the 2nd and 3rd search in a task must carry a `gap_reason` (≥15 chars).
+- **Gap reason:** the 2nd search onward in a task must carry a `gap_reason` (≥15 chars).
 - **Cache:** duplicate queries (normalised) return the cached result and use no budget.
 - **Failed calls still count** (they may be billed).
 - **Request lifecycle:** `start_request()` resets counters; the entry point must call it once
@@ -86,7 +86,7 @@ Workflow (prompt-driven, tool-guarded):
 1. Choose a `task_id` slug; use it for every search and as the note filename.
 2. `tavily_search` → `think_tool` on the result.
 3. Search again only if `think_tool` returns `SEARCH_AGAIN` (important gap or conflict),
-   passing its `gap_reason`. Never more than 3.
+   passing its `gap_reason`. Never more than 5.
 4. `write_file /notes/<task_id>.md` with five sections: Research Question, Key Findings,
    Financial Facts, Sources, Caveats.
 5. Reply with `Notes file: /notes/<task_id>.md` plus 3–6 headline bullets.
@@ -105,6 +105,30 @@ Model: `RESEARCHER_MODEL` env var, default `gpt-6.1-terra` (`openai:` prefix add
 - **Consumption:** the orchestrator keeps each `Notes file:` path and bullets, reads the notes
   with `read_file` when synthesising, then writes `/report.md` keeping source URLs and caveats.
 
+### Context flow between orchestrator and researcher
+
+```
+orchestrator ──task(description=brief)──▶ researcher   (mode="isolated")
+                                           sees: its system prompt + the brief ONLY
+                                           │ search results, think_tool, drafts stay here
+                                           ▼
+                                  write_file /notes/<slug>.md   (full detail, on disk)
+                                           │
+orchestrator ◀── one ToolMessage ──────────┘
+   "Notes file: /notes/<slug>.md" + ≤500-word summary
+   (state key `messages` only; nothing else is returned)
+```
+
+- Parent → child: only the `description` string. The parent's conversation, todos and prior
+  results are not passed (`mode="isolated"`, set explicitly on the spec).
+- Child → parent: only the child's final message. Raw search text, `think_tool` output and the
+  note body never enter the parent's context; they are read on demand with `read_file`.
+- The artifact reference is guaranteed by `ResearchGuardMiddleware.after_agent`, not by the prompt.
+- Covered by `tests/test_researcher.py` (context-flow tests with marker strings).
+- Visible in the logs (logger `fin_agent.context`, INFO): one `PARENT -> RESEARCHER` line (brief size,
+  messages received) and `RESEARCHER -> PARENT` lines (reply size, note path and size, and how much
+  stayed behind). This is plain logging inside the existing guard, not a context-management framework.
+
 ## 6. Code-enforced output limits
 
 `ResearchGuardMiddleware` (attached to the researcher) turns prompt requests into guarantees:
@@ -116,6 +140,7 @@ Model: `RESEARCHER_MODEL` env var, default `gpt-6.1-terra` (`openai:` prefix add
 | Note has all five section headings | `write_file` rejected, missing sections named |
 | Notes can only be replaced whole | `edit_file` and `delete` disabled |
 | Reply to parent ≤ 500 words (`RESULT_MAX_WORDS`) | final message truncated after the run; path line comes first so it survives |
+| Reply starts with `Notes file: <path>` | set in code from the `write_file` that actually succeeded (`NOT SAVED` if none); a model-written path is replaced |
 | Final report ≤ 700 words (`REPORT_MAX_WORDS`) | constant defined; **[planned]** applied when the report writer exists |
 
 Content rules that are prompt-level only (no practical code check): no raw page dumps, no long
@@ -136,7 +161,7 @@ Its prompt will: plan with `write_todos`; split the request into at most 3 focus
 |---|---|
 | `OPENAI_API_KEY`, `TAVILY_API_KEY` | Secrets, loaded via `python-dotenv`; only presence is ever checked |
 | `ORCHESTRATOR_MODEL`, `RESEARCHER_MODEL` | Model names, default `gpt-6.1-terra` |
-| `TAVILY_MAX_CALLS_PER_TASK` / `_MAX_RESEARCH_TASKS` / `_MAX_CALLS_PER_REQUEST` | Budget, clamped to 3 / 3 / 9 |
+| `TAVILY_MAX_CALLS_PER_TASK` / `_MAX_RESEARCH_TASKS` / `_MAX_CALLS_PER_REQUEST` | Budget, clamped to 5 / 3 / 15 |
 
 `.env` is git-ignored; `.env.example` lists names only.
 
@@ -159,7 +184,7 @@ Live checks cost API calls: `python -m fin_agent.tools.check_tavily` and
 - Deep Agents' built-in planning, `task` delegation and filesystem tools are the core; no hand-built graph.
 - One reusable subagent definition, not one agent per research category.
 - Budgets and size limits are enforced in code, not trusted to prompts.
-- `task_id` is model-chosen, so a model could invent a new id per search; the 9-call request cap
+- `task_id` is model-chosen, so a model could invent a new id per search; the 15-call request cap
   still bounds total spend.
 - Truncating the reply is a blunt backstop; the prompt asks for under 250 words.
 - Out of scope: vector DBs, RAG, FastAPI/UI, Docker/Kubernetes, databases.

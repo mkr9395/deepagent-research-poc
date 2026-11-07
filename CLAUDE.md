@@ -23,7 +23,7 @@ Keep it a practical POC. Do not build production architecture.
 
 ## Research and Output Rules
 
-- **Tavily limits:** hard per-run search budget enforced in the wrapper (about 12), 2-3 searches per research task, `search_depth="basic"`, 3-5 results, query cache for duplicates, log each search and the running count.
+- **Tavily limits:** hard per-run search budget enforced in the wrapper (15 per request), up to 5 searches per research task, `search_depth="basic"`, 3-5 results, query cache for duplicates, log each search and the running count.
 - **Each research note is limited to 500 words** (enforced in code); the summary returned to the parent is limited to 500 words.
 - **The final report is limited to 700 words.**
 - **No raw webpage dumps.** Store extracted facts and short summaries only.
