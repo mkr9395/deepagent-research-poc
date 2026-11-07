@@ -7,7 +7,8 @@ One orchestrator built with `create_deep_agent`. It relies on the framework for:
   * filesystem/context  - detailed findings live in `outputs/research/notes/*.md`;
                           the orchestrator holds short summaries + paths and reads
                           the notes with `read_file` only at synthesis time
-  * tool use            - `save_final_report` (our only custom orchestrator tool)
+  * tool use            - `submit_research_plan`, `save_final_report`, `verify_final_report`
+                          (our custom orchestrator tools; verification is a tool, not an agent)
 
 The final report is written OUTSIDE the sandboxed research backend by
 `save_final_report`, which only requires a non-empty report with source URLs (no word limit).
@@ -28,6 +29,7 @@ from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
 from fin_agent.agents.researcher import get_backend, get_researcher_subagent
+from fin_agent.report_check import check_report, request_question
 from fin_agent.research_guard import NOTES_DIR, NOTE_MAX_WORDS, count_words
 
 logger = logging.getLogger("fin_agent.orchestrator")
@@ -66,7 +68,7 @@ You never search the web yourself.
    (question + which requested dimensions each covers + why it is needed) and any skipped
    dimensions. Code rejects plans that exceed the ceiling, research unrequested dimensions,
    or leave a requested dimension uncovered - fix and resubmit. Then call write_todos
-   mirroring the tasks plus "read notes", "synthesize", "completeness check", "save report".
+   mirroring the tasks plus "read notes", "synthesize", "completeness check", "save report", "verify report".
 4. DELEGATE. Call the `task` tool with subagent_type="researcher", once per planned task
    (`task` is refused until a plan is accepted); independent tasks may be issued in the same
    step. The brief must be self-contained (the researcher sees nothing else): the task's
@@ -102,7 +104,16 @@ You never search the web yourself.
    delegate it; otherwise state the gap.
 9. SAVE. Call save_final_report with the full markdown. It is rejected only if it is empty or
    has no source URLs. The report has no word limit.
-10. REPLY with 2-4 lines: what was compared, the path saved, and the main gaps.
+10. VERIFY. Call verify_final_report. It re-reads the saved report and the original request
+   artifact and checks: every requested company is covered; the requested financial factors,
+   risks and outlook are addressed for each company; source URLs are present; obvious
+   sections (summary, comparison, sources) and an uncertainty statement are not missing.
+   If it lists a real gap, correct the report where practical - using only facts from the
+   notes you already read, or stating under evidence gaps that the item was not found - call
+   save_final_report with the full corrected report and verify again (at most 2 correction
+   rounds). Do not start new research for this check; a keyword false alarm needs no change.
+11. REPLY with 2-4 lines: what was compared, the path saved, whether verification passed or
+   which gaps remain.
 
 ## The final report
 It is the deliverable, so it must be fuller than any single research note (notes are short
@@ -167,8 +178,15 @@ def report_filename(companies) -> str:
     return f"{slug}_final_report.md"
 
 
-def make_save_final_report(planner: "ResearchPlanner | None" = None, path: Path | None = None):
-    """`path` pins an exact file (tests); otherwise the name comes from the plan's companies."""
+def make_report_tools(
+    planner: "ResearchPlanner | None" = None, path: Path | None = None, request_path: Path | None = None
+):
+    """Returns (save_final_report, verify_final_report), sharing the path of the saved report.
+
+    `path` pins an exact report file (tests); otherwise the name comes from the plan's companies.
+    `request_path` is the original-request artifact the report is verified against.
+    """
+    saved: dict[str, Path | None] = {"path": None}
 
     @tool
     def save_final_report(markdown: str) -> str:
@@ -185,9 +203,44 @@ def make_save_final_report(planner: "ResearchPlanner | None" = None, path: Path 
         target = path or REPORTS_DIR / report_filename((planner.plan or {}).get("companies") if planner else None)
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(markdown.strip() + "\n", encoding="utf-8")
+        saved["path"] = target
         return f"Saved final report to {target.as_posix()} ({count_words(markdown)} words)."
 
-    return save_final_report
+    @tool
+    def verify_final_report() -> str:
+        """Check the SAVED final report against the original request for obvious gaps.
+
+        Call after save_final_report. It re-reads the saved report and the original request
+        artifact and lists missing companies, requested factors (financials, risks, outlook),
+        sources or sections. Fix real gaps with save_final_report and call this again.
+        """
+        target = saved["path"]
+        if target is None or not target.is_file():
+            return "Error: no saved report to verify. Call save_final_report first."
+        req_file = request_path or REPORTS_DIR / "original_request.md"
+        request = req_file.read_text(encoding="utf-8") if req_file.is_file() else ""
+        plan = planner.plan if planner and planner.plan else {}
+        gaps = check_report(
+            target.read_text(encoding="utf-8"), request_question(request),
+            plan.get("companies", []), plan.get("dimensions", []),
+        )
+        synth_log.info(
+            "VERIFY | report=%s vs request=%s | companies=%s dimensions=%s | %s",
+            target.name, req_file.name if request else "MISSING", plan.get("companies"), plan.get("dimensions"),
+            f"{len(gaps)} gap(s): {gaps}" if gaps else "no obvious gaps",
+        )
+        head = f"Verified {target.as_posix()} against the original request ({req_file.name})."
+        if not gaps:
+            return head + " No obvious gaps: companies, requested factors, sources and sections are present. You may finish."
+        return (
+            head + f" {len(gaps)} possible gap(s):\n- " + "\n- ".join(gaps) +
+            "\n\nFor each real gap, add the missing content using ONLY facts from the notes you "
+            "already read (or state under evidence gaps that it was not found), call "
+            "save_final_report with the full corrected report, then call verify_final_report "
+            "again. At most 2 correction rounds; a keyword false alarm needs no change."
+        )
+
+    return save_final_report, verify_final_report
 
 
 class ResearchTask(BaseModel):
@@ -388,12 +441,16 @@ class OrchestratorGuardMiddleware(AgentMiddleware):
         return result
 
 
-def build_orchestrator(model=None, researcher_model=None, backend=None, report_path: Path | None = None):
+def build_orchestrator(
+    model=None, researcher_model=None, backend=None, report_path: Path | None = None,
+    request_path: Path | None = None,
+):
     """The main Deep Agent. `researcher_model` is for tests; normally the env decides."""
     planner = ResearchPlanner()
+    save_report, verify_report = make_report_tools(planner, report_path, request_path)
     return create_deep_agent(
         model=model or _model_name(),
-        tools=[planner.submit_research_plan, make_save_final_report(planner, report_path)],
+        tools=[planner.submit_research_plan, save_report, verify_report],
         system_prompt=ORCHESTRATOR_PROMPT,
         subagents=[get_researcher_subagent(model=researcher_model)],
         middleware=[OrchestratorGuardMiddleware(planner)],
