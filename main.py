@@ -10,6 +10,8 @@ from importlib import metadata
 
 from dotenv import load_dotenv
 
+from fin_agent.request import save_original_request
+
 PACKAGES = ["deepagents", "langchain-openai", "tavily-python", "python-dotenv", "pytest"]
 REQUIRED_VARS = ["OPENAI_API_KEY", "TAVILY_API_KEY"]
 
@@ -40,6 +42,9 @@ def main() -> int:
 
     if args.check:
         return check()
+    if args.query:
+        saved = save_original_request(args.query)
+        print(f"Saved original request to {saved}")
     print("Agent not implemented yet. Run `python main.py --check` to verify setup.")
     return 0
 

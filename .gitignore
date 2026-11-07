@@ -22,3 +22,6 @@ stage/
 # Generated research output (keep the folder, ignore the contents)
 outputs/research/*
 !outputs/research/.gitkeep
+
+# Saved user request (generated per run)
+outputs/original_request.md
