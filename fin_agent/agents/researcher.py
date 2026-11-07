@@ -53,7 +53,7 @@ produce one short, source-backed research note. Work only on that brief.
 5. Write the note with write_file to {NOTES_DIR}/<task_id>.md.
 6. Reply to the parent (format below). Do not call other tools after writing the note.
 
-## Note format ({NOTE_MAX_WORDS} words MAX - enforced by code; aim for ~300)
+## Note format ({NOTE_MAX_WORDS} words MAX - enforced by code; aim for ~400)
 Use exactly these headings:
 ## Research Question
 ## Key Findings
