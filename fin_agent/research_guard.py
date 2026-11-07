@@ -15,7 +15,11 @@ Prompts ask for short output; this middleware makes it a guarantee:
 from __future__ import annotations
 
 import logging
+import os
 import re
+import threading
+import time
+from contextvars import ContextVar
 
 from langchain.agents.middleware import AgentMiddleware
 from langchain_core.messages import AIMessage, ToolMessage
@@ -36,6 +40,53 @@ REQUIRED_SECTIONS = [
     "caveats",
 ]
 _TRUNCATION_MARK = "\n[truncated to fit the word limit]"
+
+# ---- per-task time limit ------------------------------------------------------
+DEFAULT_TASK_TIMEOUT_SECONDS = 180
+SOFT_LIMIT_FRACTION = 0.7  # after this share of the limit the researcher must stop searching
+
+
+class TaskCancelled(Exception):
+    """Raised inside a researcher that the orchestrator has abandoned (hard time limit hit)."""
+
+
+class TaskClock:
+    """Deadline for ONE researcher task. The orchestrator creates it and publishes it through
+    `TASK_CLOCK`; the researcher's guard middleware reads it.
+
+    Soft limit: no more web searches, the researcher writes its note from what it has.
+    Hard limit: the orchestrator stops waiting, sets `cancelled`, and the abandoned researcher
+    raises `TaskCancelled` at its next tool call so it cannot keep spending searches/tokens."""
+
+    def __init__(self, limit_seconds: float, now=time.monotonic):
+        self._now = now
+        self.start = now()
+        self.limit = limit_seconds
+        self.cancelled = threading.Event()
+
+    @property
+    def elapsed(self) -> float:
+        return self._now() - self.start
+
+    def soft_expired(self) -> bool:
+        return self.elapsed >= self.limit * SOFT_LIMIT_FRACTION
+
+    def hard_expired(self) -> bool:
+        return self.elapsed >= self.limit
+
+
+TASK_CLOCK: ContextVar[TaskClock | None] = ContextVar("task_clock", default=None)
+
+
+def task_timeout_seconds() -> float:
+    """RESEARCH_TASK_TIMEOUT_SECONDS from env (default 180); 0 or invalid disables the limit."""
+    raw = os.environ.get("RESEARCH_TASK_TIMEOUT_SECONDS", "").strip()
+    if not raw:
+        return DEFAULT_TASK_TIMEOUT_SECONDS
+    try:
+        return max(0.0, float(raw))
+    except ValueError:
+        return DEFAULT_TASK_TIMEOUT_SECONDS
 
 
 def count_words(text: str) -> int:
@@ -120,7 +171,16 @@ class ResearchGuardMiddleware(AgentMiddleware):
         call = request.tool_call
         name, args = call["name"], call.get("args", {})
         error = None
-        if name in ("edit_file", "delete"):
+        clock = TASK_CLOCK.get()
+        if clock is not None and clock.cancelled.is_set():
+            raise TaskCancelled("research task abandoned: time limit exceeded")
+        if clock is not None and name == "tavily_search" and clock.soft_expired():
+            error = (
+                f"[TIME_LIMIT] {clock.elapsed:.0f}s of the {clock.limit:.0f}s time limit used. "
+                "No more searches: write the note NOW from the evidence you already have "
+                "and flag what is missing as unverified."
+            )
+        elif name in ("edit_file", "delete"):
             error = (
                 f"Error: {name} is disabled. To change a note, call write_file with the "
                 "complete new content (it overwrites the previous version)."

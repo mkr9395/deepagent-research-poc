@@ -9,8 +9,11 @@ Limits (env-configurable, clamped to the hard ceilings below):
   TAVILY_MAX_CALLS_PER_REQUEST  searches per user request       (ceiling 15)
 
 A "research task" is identified by the `task_id` the agent passes to the tool
-(e.g. "msft-revenue"). The first search of a task is free of conditions; the
-2nd onward must carry a `gap_reason` explaining the gap/conflict.
+(e.g. "msft-revenue"). The first search of a task is free of conditions. From the 2nd search
+onward the call must carry a REFLECTION on the previous results: `evidence_so_far` (what is
+already established, with sources) plus a `gap_reason` (important missing information) and/or
+`sources_conflict` (figures that disagree). This folds the former separate `think_tool` step into
+the search call itself: the reflection is enforced in code and costs no extra model call.
 
 The API key is read from the environment only and is never logged or returned.
 """
@@ -35,7 +38,7 @@ CEILING_CALLS_PER_REQUEST = 15
 
 MAX_RESULTS = 4  # CLAUDE.md: 3-5 results
 SNIPPET_CHARS = 600  # no raw page dumps
-MIN_GAP_REASON_CHARS = 15
+MIN_REFLECTION_CHARS = 15  # evidence_so_far / gap_reason / sources_conflict
 
 # Reliability tiers for financial research (used to sort + label results).
 REPUTABLE_PRESS = {
@@ -147,8 +150,12 @@ class TavilyGuard:
         )
 
     # ---- the enforcement point --------------------------------------------
-    def search(self, query: str, task_id: str, gap_reason: str = "") -> str:
+    def search(
+        self, query: str, task_id: str, gap_reason: str = "", evidence_so_far: str = "",
+        sources_conflict: str = "",
+    ) -> str:
         query, task_id, gap_reason = query.strip(), task_id.strip(), gap_reason.strip()
+        evidence_so_far, sources_conflict = evidence_so_far.strip(), sources_conflict.strip()
         if not query or not task_id:
             return _blocked("BAD_INPUT", "Both `query` and `task_id` are required.")
         cache_key = " ".join(query.lower().split())
@@ -182,12 +189,19 @@ class TavilyGuard:
                     f"Task '{task_id}' already used its {lim.calls_per_task} searches.",
                 )
 
-            if used_in_task >= 1 and len(gap_reason) < MIN_GAP_REASON_CHARS:
-                return _blocked(
-                    "GAP_REASON_REQUIRED",
-                    "A further search in the same task needs `gap_reason` naming the "
-                    "important missing information or conflicting figures.",
-                )
+            if used_in_task >= 1:  # reflection on the previous results is mandatory
+                if len(evidence_so_far) < MIN_REFLECTION_CHARS:
+                    return _blocked(
+                        "REFLECTION_REQUIRED",
+                        "A further search in the same task needs `evidence_so_far`: what the earlier "
+                        "results already established, with sources.",
+                    )
+                if len(gap_reason) < MIN_REFLECTION_CHARS and len(sources_conflict) < MIN_REFLECTION_CHARS:
+                    return _blocked(
+                        "GAP_REASON_REQUIRED",
+                        "A further search in the same task needs `gap_reason` naming the "
+                        "important missing information, or `sources_conflict` naming figures that disagree.",
+                    )
 
             # Reserve the slot (counted even if Tavily later errors: it may be billed).
             self.task_calls[task_id] = used_in_task + 1
@@ -201,11 +215,14 @@ class TavilyGuard:
                 call_no, lim.calls_per_request, task_no, used_in_task + 1, lim.calls_per_task,
                 f" | gap: {gap_reason}" if gap_reason else "", query,
             )
+            if used_in_task >= 1:
+                logger.info("Reflection | evidence=%r | gap=%r | conflict=%r",
+                            evidence_so_far[:200], gap_reason[:200], sources_conflict[:200])
 
         # Network call happens outside the lock.
         try:
             raw = self._search_fn(query)
-            text = self._format(raw, call_no, task_id)
+            text = self._format(raw, call_no, task_id, used_in_task + 1)
         except Exception as exc:  # noqa: BLE001 - surface any failure to the agent
             msg = self._redact(f"{type(exc).__name__}: {exc}")
             logger.error("Tavily call %d failed: %s", call_no, msg)
@@ -216,7 +233,7 @@ class TavilyGuard:
         return text
 
     # ---- helpers -----------------------------------------------------------
-    def _format(self, raw: dict, call_no: int, task_id: str) -> str:
+    def _format(self, raw: dict, call_no: int, task_id: str, task_call_no: int) -> str:
         results = sorted(
             raw.get("results", []),
             key=lambda r: _TIER_ORDER[source_tier(r.get("url", ""))],
@@ -238,6 +255,13 @@ class TavilyGuard:
             if r.get("published_date"):  # only shown when the source provides one
                 lines.append(f"   Date: {r['published_date']}")
             lines.append(f"   {snippet}")
+        left = self.limits.calls_per_task - task_call_no
+        lines.append(
+            "Next step: if these results answer the brief, STOP searching and write the note "
+            "(flag gaps as unverified). Search again only for an important missing fact or "
+            f"conflicting figures ({left} left in this task) and then pass `evidence_so_far` plus "
+            "`gap_reason` and/or `sources_conflict`; report conflicting figures with both sources."
+        )
         return "\n".join(lines)
 
     @staticmethod
@@ -277,7 +301,9 @@ def start_request() -> None:
 
 
 @tool
-def tavily_search(query: str, task_id: str, gap_reason: str = "") -> str:
+def tavily_search(
+    query: str, task_id: str, gap_reason: str = "", evidence_so_far: str = "", sources_conflict: str = "",
+) -> str:
     """Search the web (Tavily, basic depth) for financial research.
 
     Args:
@@ -286,12 +312,17 @@ def tavily_search(query: str, task_id: str, gap_reason: str = "") -> str:
             press (Reuters, Bloomberg, FT, WSJ). Include company, metric and fiscal period.
         task_id: Short stable id of YOUR research task, e.g. "msft-revenue".
             Reuse the same id for every search within that task.
-        gap_reason: Required from the 2nd search of a task onward: the important
-            information gap or conflicting figures the extra search resolves.
+        gap_reason: From the 2nd search of a task onward (with `evidence_so_far`): the
+            important missing information this extra search should find. Minor or
+            nice-to-have gaps do not justify another search.
+        evidence_so_far: From the 2nd search onward: what the earlier results already
+            established, with sources (1-3 sentences). This is your reflection step.
+        sources_conflict: Optional alternative to `gap_reason`: figures or claims that
+            disagree, and which sources disagree.
 
     Budget is enforced in code: 5 searches/task, 3 tasks and 15 searches per
     request at most. Results carry a source tier (primary / reputable / other),
     URL and date. If the response starts with [TAVILY_BLOCKED], do not retry;
     work from the evidence you already have and flag gaps as unverified.
     """
-    return get_guard().search(query, task_id, gap_reason)
+    return get_guard().search(query, task_id, gap_reason, evidence_so_far, sources_conflict)

@@ -16,6 +16,7 @@ from deepagents import create_deep_agent
 from deepagents.backends import FilesystemBackend
 from dotenv import load_dotenv
 
+from fin_agent.models import build_model
 from fin_agent.research_guard import (
     NOTE_MAX_WORDS,
     NOTES_DIR,
@@ -23,7 +24,6 @@ from fin_agent.research_guard import (
     ResearchGuardMiddleware,
 )
 from fin_agent.tools.tavily_search import tavily_search
-from fin_agent.tools.think_tool import think_tool
 
 RESEARCH_DIR = Path(__file__).resolve().parents[2] / "outputs" / "research"
 DEFAULT_MODEL = "gpt-6.1-terra"
@@ -54,12 +54,18 @@ produce one short, source-backed research note. Work only on that brief.
    - Do not pack several fiscal periods or metrics into one query.
    - You have at most 5 searches for the whole brief: use them for the companies and gaps that
      matter most (e.g. search 1 company A, search 2 company B, then the biggest remaining gaps).
-3. Call think_tool on the result. Follow its decision.
-4. Search again ONLY if think_tool says SEARCH_AGAIN (an important gap or conflicting
-   figures). Pass its gap_reason. Never more than 5 searches for the brief; usually 2-4.
-   If a tool returns [TAVILY_BLOCKED], do not retry - write the note from what you have.
-5. Write the note with write_file to {NOTES_DIR}/<task_id>.md.
-6. Reply to the parent (format below). Do not call other tools after writing the note.
+3. Read the results and REFLECT before any further search. Reflection is part of the next
+   search call, not a separate tool: from the 2nd search of the brief onward pass
+   - `evidence_so_far`: what the earlier results already established, with sources;
+   - `gap_reason`: the important missing fact that matters to the comparison (not a nice-to-have);
+   - `sources_conflict` (instead of or besides the gap): figures that disagree and which sources.
+   If the evidence already answers the brief, STOP and write the note. Never more than 5
+   searches for the brief; usually 2-4. Report conflicting figures with both sources and flag
+   them as unverified unless resolved.
+   If a tool returns [TAVILY_BLOCKED] or [TIME_LIMIT], do not retry - write the note from what
+   you have immediately (you have a time limit; be quick).
+4. Write the note with write_file to {NOTES_DIR}/<task_id>.md.
+5. Reply to the parent (format below). Do not call other tools after writing the note.
 
 ## Source priority
 - Financial figures (revenue, income, margins, cash flow, risk factors): prefer authoritative
@@ -140,8 +146,8 @@ def get_researcher_subagent(model=None) -> dict:
         "name": "researcher",
         "description": RESEARCHER_DESCRIPTION,
         "system_prompt": RESEARCHER_PROMPT,
-        "tools": [tavily_search, think_tool],
-        "model": model or _model_name(),
+        "tools": [tavily_search],
+        "model": model or build_model(_model_name()),
         "mode": "isolated",  # child sees only the brief; parent sees only the final message
         "middleware": [ResearchGuardMiddleware()],
     }
@@ -150,8 +156,8 @@ def get_researcher_subagent(model=None) -> dict:
 def build_researcher_agent(model=None, backend=None):
     """Run the researcher on its own (smoke tests). Same prompt, tools and guard as the subagent."""
     return create_deep_agent(
-        model=model or _model_name(),
-        tools=[tavily_search, think_tool],
+        model=model or build_model(_model_name()),
+        tools=[tavily_search],
         system_prompt=RESEARCHER_PROMPT,
         middleware=[ResearchGuardMiddleware()],
         backend=backend or get_backend(),

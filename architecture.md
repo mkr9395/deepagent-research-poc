@@ -27,7 +27,7 @@ Status legend: **[built]** exists and is tested, **[planned]** not implemented y
  ┌──────────────────────────────────────────────┐
  │ researcher subagent  (one definition,        │                          [built]
  │ reused per brief; isolated context)          │
- │  tavily_search · think_tool · write_file     │
+ │  tavily_search (+reflection) · write_file   │
  └───────┬──────────────────────┬───────────────┘
          │ search (≤5/task)     │ write_file /notes/<slug>.md  (≤500 words)
          ▼                      ▼
@@ -48,7 +48,6 @@ live on disk.
 | `main.py` | CLI. `--check` verifies packages and that required env vars are *set* (values never printed). A query saves the original request; the agent run is not wired yet. | partial |
 | `fin_agent/request.py` | `save_original_request()` writes the latest request to `outputs/original_request.md` (overwritten each run) and a timestamped copy to `outputs/requests/` (history, never overwritten; same-second collisions get a `_2`, `_3` suffix). | built |
 | `fin_agent/tools/tavily_search.py` | `TavilyGuard` + `tavily_search` LangChain tool; budget enforced in code. | built |
-| `fin_agent/tools/think_tool.py` | Structured reflection tool with deterministic consistency checks. | built |
 | `fin_agent/tools/check_tavily.py` | Standalone live check of the Tavily integration (spends real calls). | built |
 | `fin_agent/research_guard.py` | `ResearchGuardMiddleware`: note path/size/section checks, result truncation. | built |
 | `fin_agent/agents/researcher.py` | Researcher prompt, `get_researcher_subagent()`, `build_researcher_agent()`, sandboxed backend, `python -m` smoke runner. | built |
@@ -58,13 +57,13 @@ live on disk.
 
 ## 3. Tavily search layer
 
-`tavily_search(query, task_id, gap_reason="")` delegates to a singleton `TavilyGuard`.
+`tavily_search(query, task_id, gap_reason="", evidence_so_far="", sources_conflict="")` delegates to a singleton `TavilyGuard`.
 All limits live in code, so a misbehaving model gets a `[TAVILY_BLOCKED:<code>]` message
 instead of a network call.
 
 - **Limits** (env can lower, never raise): 5 searches per task, 3 research tasks and 15
   searches per request. A "task" is the `task_id` the model passes.
-- **Gap reason:** the 2nd search onward in a task must carry a `gap_reason` (≥15 chars).
+- **Reflection (folded in, no separate tool):** the 2nd search onward in a task must carry `evidence_so_far` (≥15 chars) plus a `gap_reason` and/or `sources_conflict` (≥15 chars); otherwise it is blocked (`REFLECTION_REQUIRED` / `GAP_REASON_REQUIRED`). Each result ends with a stop-or-search hint, and the reflection is logged.
 - **Cache:** duplicate queries (normalised) return the cached result and use no budget.
 - **Failed calls still count** (they may be billed).
 - **Request lifecycle:** `start_request()` resets counters; the entry point must call it once
@@ -84,9 +83,9 @@ per focused brief; each run has an isolated context containing only the brief.
 Workflow (prompt-driven, tool-guarded):
 
 1. Choose a `task_id` slug; use it for every search and as the note filename.
-2. `tavily_search` → `think_tool` on the result.
-3. Search again only if `think_tool` returns `SEARCH_AGAIN` (important gap or conflict),
-   passing its `gap_reason`. Never more than 5.
+2. `tavily_search`, then reflect on the result.
+3. Search again only for an important gap or conflict, passing `evidence_so_far` and
+   `gap_reason` / `sources_conflict` in the call. Never more than 5.
 4. `write_file /notes/<task_id>.md` with five sections: Research Question, Key Findings,
    Financial Facts, Sources, Caveats.
 5. Reply with `Notes file: /notes/<task_id>.md` plus 3–6 headline bullets.
@@ -110,7 +109,7 @@ Model: `RESEARCHER_MODEL` env var, default `gpt-6.1-terra` (`openai:` prefix add
 ```
 orchestrator ──task(description=brief)──▶ researcher   (mode="isolated")
                                            sees: its system prompt + the brief ONLY
-                                           │ search results, think_tool, drafts stay here
+                                           │ search results, reflections, drafts stay here
                                            ▼
                                   write_file /notes/<slug>.md   (full detail, on disk)
                                            │
@@ -121,7 +120,7 @@ orchestrator ◀── one ToolMessage ──────────┘
 
 - Parent → child: only the `description` string. The parent's conversation, todos and prior
   results are not passed (`mode="isolated"`, set explicitly on the spec).
-- Child → parent: only the child's final message. Raw search text, `think_tool` output and the
+- Child → parent: only the child's final message. Raw search text, reflection arguments and the
   note body never enter the parent's context; they are read on demand with `read_file`.
 - The artifact reference is guaranteed by `ResearchGuardMiddleware.after_agent`, not by the prompt.
 - Covered by `tests/test_researcher.py` (context-flow tests with marker strings).
@@ -141,7 +140,7 @@ orchestrator ◀── one ToolMessage ──────────┘
 | Notes can only be replaced whole | `edit_file` and `delete` disabled |
 | Reply to parent ≤ 500 words (`RESULT_MAX_WORDS`) | final message truncated after the run; path line comes first so it survives |
 | Reply starts with `Notes file: <path>` | set in code from the `write_file` that actually succeeded (`NOT SAVED` if none); a model-written path is replaced |
-| Final report: non-empty, has source URLs (no word limit) | `save_final_report` rejects otherwise |
+| Final report: non-empty, has source URLs, at most 900 words | `save_final_report` rejects otherwise |
 
 Content rules that are prompt-level only (no practical code check): no raw page dumps, no long
 quotations, never invent figures, flag unverified/stale claims. Every figure should keep its
@@ -170,7 +169,7 @@ Its prompt will: plan with `write_todos`; split the request into at most 3 focus
 Offline and light, run with `python -m pytest -q`:
 
 - `test_tavily_search.py`: budget, gap reason, cache, ordering, logging, no key leak (fake search).
-- `test_think_tool.py`: reflection checks.
+- `test_tavily_search.py` also covers the reflection checks.
 - `test_researcher.py`: guard rules, plus the researcher running through the parent's `task`
   tool with scripted fake models: execution, artifact creation, ≤ note limit, ≤ 500-word reply,
   reuse across two briefs.

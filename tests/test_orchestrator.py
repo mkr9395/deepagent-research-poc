@@ -19,7 +19,9 @@ FIXED = REPORT + "## Key differences\n- MSFT grew revenue faster than GOOGL (htt
 
 def test_validate_report():
     assert validate_report(REPORT) is None
-    assert validate_report(REPORT + "w " * 5000) is None          # no word limit
+    assert validate_report(REPORT + "w " * 800) is None            # under the cap
+    too_long = validate_report(REPORT + "w " * 1000)
+    assert "limit is 900" in too_long and "Nothing was saved" in too_long
     assert "empty" in validate_report("   ")
     assert "source URLs" in validate_report("# T\n## Summary\nok")
 
@@ -29,7 +31,6 @@ def test_orchestrator_plans_delegates_reads_notes_and_saves_report(tmp_path, mon
         "query": q, "results": [{"title": "10-K", "url": "https://sec.gov/a", "content": "Revenue up"}]}))
     researcher = ScriptedModel(script=[
         call("tavily_search", query="q", task_id="t1"),
-        call("think_tool", evidence_summary="ok", evidence_sufficient=True),
         call("write_file", file_path=PATH, content=GOOD_NOTE),
         AIMessage(content="- Revenue up"),
     ])
