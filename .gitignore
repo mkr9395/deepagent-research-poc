@@ -25,3 +25,4 @@ outputs/research/*
 
 # Saved user request (generated per run)
 outputs/original_request.md
+outputs/requests/
