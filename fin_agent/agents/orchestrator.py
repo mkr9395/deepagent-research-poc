@@ -34,7 +34,7 @@ logger = logging.getLogger("fin_agent.orchestrator")
 synth_log = logging.getLogger("fin_agent.synthesis")  # artifact reads during synthesis
 
 DEFAULT_MODEL = "gpt-6.1-terra"
-REPORT_PATH = Path(__file__).resolve().parents[2] / "outputs" / "final_report.md"
+REPORTS_DIR = Path(__file__).resolve().parents[2] / "outputs"
 MAX_RESEARCH_TASKS = 3  # mirrors the Tavily guard: 3 tasks x 5 searches = 15 per request
 
 ORCHESTRATOR_PROMPT = f"""\
@@ -143,21 +143,32 @@ def validate_report(markdown: str) -> str | None:
     return None
 
 
-def make_save_final_report(path: Path = REPORT_PATH):
+def report_filename(companies) -> str:
+    """`microsoft-alphabet_final_report.md` - named after the compared companies."""
+    slug = "-".join(re.sub(r"[^a-z0-9]+", "-", str(c).lower()).strip("-") for c in companies or [])
+    slug = re.sub(r"-+", "-", slug).strip("-")[:60].strip("-") or "comparison"
+    return f"{slug}_final_report.md"
+
+
+def make_save_final_report(planner: "ResearchPlanner | None" = None, path: Path | None = None):
+    """`path` pins an exact file (tests); otherwise the name comes from the plan's companies."""
+
     @tool
     def save_final_report(markdown: str) -> str:
         """Save the final comparison report (markdown) as the run's deliverable.
 
         Limit: 700 words, must include a 'Coverage and Gaps' section and source URLs.
-        Calling it again overwrites the previous version.
+        Saved as outputs/<companies>_final_report.md; calling it again in the same run
+        overwrites that run's previous version.
         """
         error = validate_report(markdown)
         if error:
             logger.warning("Report rejected: %s", error)
             return error
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(markdown.strip() + "\n", encoding="utf-8")
-        return f"Saved final report to {path.as_posix()} ({count_words(markdown)} words)."
+        target = path or REPORTS_DIR / report_filename((planner.plan or {}).get("companies") if planner else None)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(markdown.strip() + "\n", encoding="utf-8")
+        return f"Saved final report to {target.as_posix()} ({count_words(markdown)} words)."
 
     return save_final_report
 
@@ -360,12 +371,12 @@ class OrchestratorGuardMiddleware(AgentMiddleware):
         return result
 
 
-def build_orchestrator(model=None, researcher_model=None, backend=None, report_path: Path = REPORT_PATH):
+def build_orchestrator(model=None, researcher_model=None, backend=None, report_path: Path | None = None):
     """The main Deep Agent. `researcher_model` is for tests; normally the env decides."""
     planner = ResearchPlanner()
     return create_deep_agent(
         model=model or _model_name(),
-        tools=[planner.submit_research_plan, make_save_final_report(report_path)],
+        tools=[planner.submit_research_plan, make_save_final_report(planner, report_path)],
         system_prompt=ORCHESTRATOR_PROMPT,
         subagents=[get_researcher_subagent(model=researcher_model)],
         middleware=[OrchestratorGuardMiddleware(planner)],

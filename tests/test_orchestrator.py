@@ -31,7 +31,9 @@ def test_orchestrator_plans_delegates_reads_notes_and_saves_report(tmp_path, mon
         call("write_file", file_path=PATH, content=GOOD_NOTE),
         AIMessage(content="- Revenue up"),
     ])
-    out_file = tmp_path / "final_report.md"
+    from fin_agent.agents import orchestrator as orch_mod
+    monkeypatch.setattr(orch_mod, "REPORTS_DIR", tmp_path)
+    out_file = tmp_path / "msft-googl_final_report.md"  # named after the planned companies
     orch = ScriptedModel(script=[
         call("task", description="too early", subagent_type="researcher"),  # refused: no plan yet
         call("submit_research_plan", companies=["MSFT", "GOOGL"], dimensions=["revenue"],
@@ -48,7 +50,7 @@ def test_orchestrator_plans_delegates_reads_notes_and_saves_report(tmp_path, mon
     research_dir = tmp_path / "research"
     (research_dir / "notes").mkdir(parents=True)
     agent = build_orchestrator(
-        model=orch, researcher_model=researcher, report_path=out_file,
+        model=orch, researcher_model=researcher,
         backend=FilesystemBackend(root_dir=research_dir, virtual_mode=True),
     )
     out = agent.invoke({"messages": [{"role": "user", "content": "compare MSFT and GOOGL"}]})
@@ -118,3 +120,9 @@ def test_decomposition_size_follows_the_request(tmp_path):
             {"question": f"q{i}", "dimensions": g, "why_needed": "w"} for i, g in enumerate(groups)]})
         counts[name] = sum(p.allow_delegation() is None for _ in range(5))
     assert counts == {"narrow": 1, "broad": 3}
+
+
+def test_report_is_named_after_the_companies():
+    from fin_agent.agents.orchestrator import report_filename
+    assert report_filename(["Microsoft", "Alphabet Inc."]) == "microsoft-alphabet-inc_final_report.md"
+    assert report_filename([]) == "comparison_final_report.md"
