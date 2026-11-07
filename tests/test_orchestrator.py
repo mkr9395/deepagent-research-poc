@@ -6,6 +6,8 @@ from fin_agent.research_guard import REPORT_MAX_WORDS
 from fin_agent.tools import tavily_search as ts
 from fin_agent.tools.tavily_search import Limits, TavilyGuard
 from langchain_core.messages import AIMessage
+import pytest
+from fin_agent.agents.orchestrator import ResearchPlanner, ResearchTask
 from tests.test_researcher import GOOD_NOTE, ScriptedModel, call
 
 PATH = "/notes/msft-googl-revenue.md"
@@ -31,6 +33,9 @@ def test_orchestrator_plans_delegates_reads_notes_and_saves_report(tmp_path, mon
     ])
     out_file = tmp_path / "final_report.md"
     orch = ScriptedModel(script=[
+        call("task", description="too early", subagent_type="researcher"),  # refused: no plan yet
+        call("submit_research_plan", companies=["MSFT", "GOOGL"], dimensions=["revenue"],
+             tasks=[{"question": "Revenue growth FY2025?", "dimensions": ["revenue"], "why_needed": "asked"}]),
         call("write_todos", todos=[{"content": "research", "status": "in_progress"}]),
         call("task", description="Revenue for MSFT and GOOGL", subagent_type="researcher"),
         call("write_file", file_path="/x.md", content="nope"),          # blocked
@@ -54,3 +59,59 @@ def test_orchestrator_plans_delegates_reads_notes_and_saves_report(tmp_path, mon
     by_name = {m.name: m.content for m in out["messages"] if getattr(m, "name", None)}
     assert "write_todos" in by_name and by_name["task"].startswith(f"Notes file: {PATH}")
     assert "Saved final report" in by_name["save_final_report"]
+
+
+# ---- dynamic research planning ----------------------------------------------
+def task(q, *dims):
+    return ResearchTask(question=q, dimensions=list(dims), why_needed="asked")
+
+
+def plan(planner, dims, tasks, skipped=None):
+    return planner.validate(["A", "B"], dims, tasks, skipped)
+
+
+def test_narrow_request_needs_only_one_task_and_cannot_add_risks():
+    p = ResearchPlanner()
+    ok = [task("Revenue growth and margins FY2025?", "revenue growth", "profitability")]
+    assert plan(p, ["revenue growth", "profitability"], ok) is None            # 1 merged task
+    padded = ok + [task("Key risks?", "risks")]
+    assert "did not request" in plan(p, ["revenue growth", "profitability"], padded)
+
+
+def test_broad_request_justifies_several_tasks_but_never_more_than_three():
+    p = ResearchPlanner()
+    dims = ["revenue", "profitability", "regulatory risks", "outlook"]
+    three = [task("q1", "revenue", "profitability"), task("q2", "regulatory risks"), task("q3", "outlook")]
+    assert plan(p, dims, three) is None
+    four = three + [task("q4", "outlook")]
+    assert "hard ceiling 3" in plan(p, dims, four)
+
+
+def test_requested_dimension_must_be_covered_or_skipped_with_reason():
+    p = ResearchPlanner()
+    one = [task("q", "revenue")]
+    assert "neither covered" in plan(p, ["revenue", "outlook"], one)
+    assert plan(p, ["revenue", "outlook"], one, {"outlook": "no guidance published"}) is None
+
+
+def test_delegation_is_bound_to_the_plan_and_ceiling():
+    p = ResearchPlanner()
+    assert "submit_research_plan" in p.allow_delegation()           # no plan yet
+    p.submit_research_plan.invoke({"companies": ["A"], "dimensions": ["revenue"],
+                                   "tasks": [{"question": "q", "dimensions": ["revenue"], "why_needed": "w"}]})
+    assert p.allow_delegation() is None                              # the one planned task
+    assert "already delegated" in p.allow_delegation()               # a second one is refused
+    assert p.delegated_total == 1
+
+
+def test_decomposition_size_follows_the_request(tmp_path):
+    """Same orchestrator, two requests -> a different number of researcher tasks."""
+    counts = {}
+    for name, dims, n in [("narrow", ["revenue growth", "profitability"], 1),
+                          ("broad", ["revenue", "profitability", "regulatory risks", "outlook"], 3)]:
+        p = ResearchPlanner()
+        groups = [dims[:2], dims[2:3], dims[3:]] if n == 3 else [dims]
+        p.submit_research_plan.invoke({"companies": ["A", "B"], "dimensions": dims, "tasks": [
+            {"question": f"q{i}", "dimensions": g, "why_needed": "w"} for i, g in enumerate(groups)]})
+        counts[name] = sum(p.allow_delegation() is None for _ in range(5))
+    assert counts == {"narrow": 1, "broad": 3}

@@ -17,6 +17,7 @@ from __future__ import annotations
 import logging
 import os
 import re
+import threading
 from pathlib import Path
 
 from deepagents import create_deep_agent
@@ -24,6 +25,7 @@ from dotenv import load_dotenv
 from langchain.agents.middleware import AgentMiddleware
 from langchain_core.messages import ToolMessage
 from langchain_core.tools import tool
+from pydantic import BaseModel, Field
 
 from fin_agent.agents.researcher import get_backend, get_researcher_subagent
 from fin_agent.research_guard import NOTES_DIR, NOTE_MAX_WORDS, REPORT_MAX_WORDS, count_words
@@ -42,19 +44,33 @@ You never search the web yourself.
 
 ## Workflow
 1. UNDERSTAND. From the user's request, identify (a) the companies and (b) the requested
-   comparison dimensions (e.g. revenue growth, profitability, risks, outlook). Use only what
-   the user asked for; if a period is not given, use the latest fiscal year available.
-2. PLAN. Call write_todos with a short plan: the research tasks, then "read notes",
-   "synthesize", "completeness check", "save report". Keep it updated as you progress.
-3. DECIDE WHAT IS NECESSARY. Group the dimensions into the FEWEST focused research tasks
-   that cover the request - at most {MAX_RESEARCH_TASKS} tasks (a hard budget enforced in code).
-   Each task brief covers ONE theme for ALL the companies (e.g. "revenue growth and
-   profitability", or "risks and outlook"). Skip anything the user did not ask for. A narrow
-   question may need only one or two tasks.
-4. DELEGATE. Call the `task` tool with subagent_type="researcher" once per task; independent
-   tasks may be issued in the same step. The brief must be self-contained (the researcher
-   sees nothing else): list the companies, the topic, the fiscal period, and remind it to keep
-   source URLs. Do not paste research into briefs.
+   comparison dimensions, in the user's own terms (e.g. "revenue growth", "profitability",
+   "regulatory risks"). If a period is not given, use the latest fiscal year available.
+2. DECIDE WHAT RESEARCH IS NECESSARY. There is no fixed task list. Derive tasks from THIS
+   request, never from a template:
+   - Only dimensions the user asked for may be researched. If "risks" or "outlook" was not
+     asked for, do NOT research it - not even "for context".
+   - Merge dimensions that the same sources answer (e.g. revenue growth + profitability come
+     from the same earnings releases -> ONE task). Split dimensions that need different sources
+     or a different kind of evidence (e.g. regulatory risks -> filings/regulators; outlook ->
+     guidance/analyst commentary).
+   - Use the FEWEST tasks that cover the request: often 1, sometimes 2, 3 only for broad
+     requests. Hard ceiling {MAX_RESEARCH_TASKS} tasks per request (enforced in code).
+   - Each task is ONE specific question for all the companies, not a topic label. Bad:
+     "risks". Good: "What are the main regulatory/antitrust risks disclosed by Amazon and
+     Walmart in their latest 10-K, and any recent enforcement actions?"
+   - A dimension may be skipped only with a stated reason (e.g. not researchable); say so in
+     the report's coverage section.
+3. PLAN. Call submit_research_plan with the companies, the requested dimensions, the tasks
+   (question + which requested dimensions each covers + why it is needed) and any skipped
+   dimensions. Code rejects plans that exceed the ceiling, research unrequested dimensions,
+   or leave a requested dimension uncovered - fix and resubmit. Then call write_todos
+   mirroring the tasks plus "read notes", "synthesize", "completeness check", "save report".
+4. DELEGATE. Call the `task` tool with subagent_type="researcher", once per planned task
+   (`task` is refused until a plan is accepted); independent tasks may be issued in the same
+   step. The brief must be self-contained (the researcher sees nothing else): the task's
+   question, the companies, the fiscal period, and a reminder to keep source URLs. Do not
+   paste research into briefs.
 5. COLLECT. Each researcher returns a short summary and a `Notes file:` path. Keep only
    those (summary + path). If a task returns `NOT SAVED`, treat its findings as unverified.
 6. READ. At synthesis time call read_file on each notes file you need (paths start with
@@ -64,7 +80,8 @@ You never search the web yourself.
    conflicting or not found.
 8. COMPLETENESS CHECK. Re-read the user's original request and check each company x
    dimension is covered or explicitly marked as a gap. If an important gap remains AND the
-   task budget allows, delegate ONE more focused task; otherwise state the gap.
+   task budget allows, call submit_research_plan again with just the follow-up task, then
+   delegate it; otherwise state the gap.
 9. SAVE. Call save_final_report with the full markdown. It is rejected if it exceeds
    {REPORT_MAX_WORDS} words or lacks a coverage section - shorten and call it again.
 10. REPLY with 2-4 lines: what was compared, the path saved, and the main gaps.
@@ -127,25 +144,139 @@ def make_save_final_report(path: Path = REPORT_PATH):
     return save_final_report
 
 
+class ResearchTask(BaseModel):
+    question: str = Field(description="The specific question this task must answer, for all companies.")
+    dimensions: list[str] = Field(description="Requested dimensions this task covers (user's terms).")
+    why_needed: str = Field(description="One line: why this task is necessary for the request.")
+
+
+def _norm(text: str) -> str:
+    return " ".join(text.lower().split())
+
+
+class ResearchPlanner:
+    """Holds the accepted research plan and enforces it (ceiling, scope, coverage).
+
+    The model decides WHAT to research. Code only checks that the plan is consistent with the
+    dimensions it declared, stays under the hard task ceiling, and that `task` calls follow it.
+    """
+
+    def __init__(self, max_tasks: int = MAX_RESEARCH_TASKS):
+        self.max_tasks = max_tasks
+        self.plan: dict | None = None
+        self.delegated_total = 0  # researcher tasks started this request (never reset)
+        self.delegated_in_plan = 0
+        self._lock = threading.Lock()
+        self.submit_research_plan = self._make_tool()
+
+    def validate(self, companies, dimensions, tasks, skipped) -> str | None:
+        remaining = self.max_tasks - self.delegated_total
+        if not companies or not dimensions:
+            return "Error: list the companies and the requested dimensions."
+        if not tasks:
+            return "Error: a plan needs at least one research task."
+        if len(tasks) > remaining:
+            return (
+                f"Error: {len(tasks)} tasks planned but only {remaining} remain "
+                f"(hard ceiling {self.max_tasks} per request). Merge or drop tasks."
+            )
+        requested = {_norm(d) for d in dimensions}
+        covered: set[str] = set()
+        for t in tasks:
+            if not t.question.strip() or not t.dimensions:
+                return "Error: every task needs a specific question and the dimensions it covers."
+            extra = {_norm(d) for d in t.dimensions} - requested
+            if extra:
+                return (
+                    f"Error: task researches {sorted(extra)}, which the user did not request. "
+                    "Remove it, or add it to dimensions only if the request really asked for it."
+                )
+            covered |= {_norm(d) for d in t.dimensions}
+        missing = requested - covered - {_norm(k) for k in (skipped or {})}
+        if missing:
+            return (
+                f"Error: requested dimension(s) {sorted(missing)} are neither covered by a task "
+                "nor listed in skipped with a reason."
+            )
+        return None
+
+    def _make_tool(self):
+        @tool
+        def submit_research_plan(
+            companies: list[str],
+            dimensions: list[str],
+            tasks: list[ResearchTask],
+            skipped: dict[str, str] | None = None,
+        ) -> str:
+            """Record the research plan BEFORE delegating.
+
+            Args:
+                companies: companies being compared.
+                dimensions: comparison dimensions the USER requested (their terms).
+                tasks: the necessary research tasks (hard ceiling 3 per request, minus tasks
+                    already delegated). Each covers only requested dimensions.
+                skipped: requested dimension -> reason it will not be researched.
+            """
+            with self._lock:
+                error = self.validate(companies, dimensions, tasks, skipped)
+                if error:
+                    logger.warning("Plan rejected: %s", error)
+                    return error
+                self.plan = {
+                    "companies": companies,
+                    "dimensions": dimensions,
+                    "tasks": [t.model_dump() for t in tasks],
+                    "skipped": skipped or {},
+                }
+                self.delegated_in_plan = 0
+            logger.info("PLAN | %d task(s) for %s | skipped=%s", len(tasks), dimensions, list(skipped or {}))
+            return (
+                f"Plan accepted: {len(tasks)} research task(s). Delegate exactly these with the "
+                "`task` tool, then read the notes and write the report."
+            )
+
+        return submit_research_plan
+
+    def allow_delegation(self) -> str | None:
+        """Called for each `task` call: returns an error to refuse it, else counts it."""
+        with self._lock:
+            if self.plan is None:
+                return "Error: call submit_research_plan first; `task` is refused until a plan is accepted."
+            if self.delegated_in_plan >= len(self.plan["tasks"]):
+                return (
+                    "Error: every task in the accepted plan is already delegated. Submit a new plan "
+                    "for a follow-up task if an important gap remains."
+                )
+            if self.delegated_total >= self.max_tasks:
+                return f"Error: research task ceiling ({self.max_tasks}) reached for this request."
+            self.delegated_in_plan += 1
+            self.delegated_total += 1
+        return None
+
+
 class OrchestratorGuardMiddleware(AgentMiddleware):
-    """The orchestrator reads notes but does not write files itself.
+    """The orchestrator reads notes but does not write files itself, and may only delegate
+    (`task`) following an accepted research plan, within the 3-task ceiling.
 
     Notes belong to the researcher; the report goes through `save_final_report`.
     """
 
+    def __init__(self, planner: ResearchPlanner):
+        self.planner = planner
+
     def _check(self, request) -> ToolMessage | None:
         call = request.tool_call
+        error = None
         if call["name"] in ("write_file", "edit_file", "delete"):
-            return ToolMessage(
-                content=(
-                    f"Error: {call['name']} is disabled for the lead analyst. Delegate research to "
-                    "the researcher; save the report with save_final_report."
-                ),
-                name=call["name"],
-                tool_call_id=call["id"],
-                status="error",
+            error = (
+                f"Error: {call['name']} is disabled for the lead analyst. Delegate research to "
+                "the researcher; save the report with save_final_report."
             )
-        return None
+        elif call["name"] == "task":
+            error = self.planner.allow_delegation()
+        if error is None:
+            return None
+        return ToolMessage(content=error, name=call["name"], tool_call_id=call["id"], status="error")
 
     def wrap_tool_call(self, request, handler):
         return self._check(request) or handler(request)
@@ -156,12 +287,13 @@ class OrchestratorGuardMiddleware(AgentMiddleware):
 
 def build_orchestrator(model=None, researcher_model=None, backend=None, report_path: Path = REPORT_PATH):
     """The main Deep Agent. `researcher_model` is for tests; normally the env decides."""
+    planner = ResearchPlanner()
     return create_deep_agent(
         model=model or _model_name(),
-        tools=[make_save_final_report(report_path)],
+        tools=[planner.submit_research_plan, make_save_final_report(report_path)],
         system_prompt=ORCHESTRATOR_PROMPT,
         subagents=[get_researcher_subagent(model=researcher_model)],
-        middleware=[OrchestratorGuardMiddleware()],
+        middleware=[OrchestratorGuardMiddleware(planner)],
         backend=backend or get_backend(),
         name="orchestrator",
     )
