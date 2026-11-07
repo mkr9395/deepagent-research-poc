@@ -16,3 +16,9 @@ __pycache__/
 venv/
 .venv/
 stage/
+# Testing / tooling
+.pytest_cache/
+
+# Generated research output (keep the folder, ignore the contents)
+outputs/research/*
+!outputs/research/.gitkeep

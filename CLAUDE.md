@@ -18,7 +18,7 @@ Keep it a practical POC. Do not build production architecture.
 ## Agent Design
 
 - **One orchestrator + one reusable `researcher` subagent definition.** The orchestrator invokes the researcher multiple times with different briefs (company + topic). Do not create three permanently separate agents.
-- **Filesystem/context management is a core part of the design.** Detailed research goes to files under `workspace/` (e.g. `workspace/notes/*.md`); the orchestrator keeps only short summaries and file paths in its context, reads notes at synthesis time, and writes `workspace/report.md`. The filesystem backend must be sandboxed to `workspace/`.
+- **Filesystem/context management is a core part of the design.** Detailed research goes to files under `outputs/research/` (e.g. `outputs/research/notes/*.md`); the orchestrator keeps only short summaries and file paths in its context, reads notes at synthesis time, and writes `outputs/research/report.md`. The filesystem backend must be sandboxed to `outputs/research/`.
 - The researcher returns a brief summary plus the notes file path, not the full findings.
 
 ## Research and Output Rules

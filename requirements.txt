@@ -1,0 +1,14 @@
+# Core framework
+deepagents
+
+# OpenAI models (used via "openai:<model>" strings / ChatOpenAI)
+langchain-openai
+
+# Tavily web search (official SDK)
+tavily-python
+
+# Load API keys from .env
+python-dotenv
+
+# Lightweight testing
+pytest
