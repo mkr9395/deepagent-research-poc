@@ -34,7 +34,7 @@ Status legend: **[built]** exists and is tested, **[planned]** not implemented y
    TavilyGuard ──▶ Tavily    outputs/research/notes/<slug>.md
                                    ▲
                                    │ read_file at synthesis time
-                 orchestrator ─────┘── write_file /report.md (≤700 words)
+                 orchestrator ─────┘── save_final_report outputs/<companies>_final_report.md
                                        → outputs/research/report.md        [planned]
 ```
 
@@ -141,7 +141,7 @@ orchestrator ◀── one ToolMessage ──────────┘
 | Notes can only be replaced whole | `edit_file` and `delete` disabled |
 | Reply to parent ≤ 500 words (`RESULT_MAX_WORDS`) | final message truncated after the run; path line comes first so it survives |
 | Reply starts with `Notes file: <path>` | set in code from the `write_file` that actually succeeded (`NOT SAVED` if none); a model-written path is replaced |
-| Final report ≤ 700 words (`REPORT_MAX_WORDS`) | constant defined; **[planned]** applied when the report writer exists |
+| Final report: non-empty, has source URLs (no word limit) | `save_final_report` rejects otherwise |
 
 Content rules that are prompt-level only (no practical code check): no raw page dumps, no long
 quotations, never invent figures, flag unverified/stale claims. Every figure should keep its

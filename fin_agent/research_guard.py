@@ -26,7 +26,6 @@ ctx_log = logging.getLogger("fin_agent.context")
 
 NOTE_MAX_WORDS = 500
 RESULT_MAX_WORDS = 500
-REPORT_MAX_WORDS = 700  # final report (applied when the report writer is built)
 NOTES_DIR = "/notes"
 NOTE_PATH_RE = re.compile(rf"^{NOTES_DIR}/[a-z0-9][a-z0-9_-]{{0,80}}\.md$")
 REQUIRED_SECTIONS = [

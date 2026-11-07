@@ -2,7 +2,6 @@
 from deepagents.backends import FilesystemBackend
 
 from fin_agent.agents.orchestrator import build_orchestrator, validate_report
-from fin_agent.research_guard import REPORT_MAX_WORDS
 from fin_agent.tools import tavily_search as ts
 from fin_agent.tools.tavily_search import Limits, TavilyGuard
 from langchain_core.messages import AIMessage
@@ -17,9 +16,9 @@ REPORT = ("# MSFT vs GOOGL\n## Summary\n- Revenue up (https://sec.gov/a)\n"
 
 def test_validate_report():
     assert validate_report(REPORT) is None
-    assert "limit is 700" in validate_report(REPORT + "w " * REPORT_MAX_WORDS)
-    assert "Coverage" in validate_report("# T\nhttps://x.com")
-    assert "source URLs" in validate_report("# T\n## Coverage and Gaps\nok")
+    assert validate_report(REPORT + "w " * 5000) is None          # no word limit
+    assert "empty" in validate_report("   ")
+    assert "source URLs" in validate_report("# T\n## Summary\nok")
 
 
 def test_orchestrator_plans_delegates_reads_notes_and_saves_report(tmp_path, monkeypatch):
@@ -57,7 +56,8 @@ def test_orchestrator_plans_delegates_reads_notes_and_saves_report(tmp_path, mon
 
     assert orch.idx == len(orch.script) and researcher.idx == len(researcher.script)
     assert (research_dir / "notes" / "msft-googl-revenue.md").is_file()   # note in sandbox
-    assert out_file.read_text(encoding="utf-8").strip() == REPORT.strip()  # report outside it
+    assert out_file.is_file() and out_file.stat().st_size > 0              # report created, non-empty
+    assert out_file.read_text(encoding="utf-8").strip() == REPORT.strip()  # report outside the sandbox
     assert not (research_dir / "x.md").exists()                            # orchestrator can't write
     by_name = {m.name: m.content for m in out["messages"] if getattr(m, "name", None)}
     assert "write_todos" in by_name and by_name["task"].startswith(f"Notes file: {PATH}")
