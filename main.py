@@ -22,6 +22,13 @@ PACKAGES = ["deepagents", "langchain-openai", "tavily-python", "python-dotenv", 
 REQUIRED_VARS = ["OPENAI_API_KEY", "TAVILY_API_KEY"]
 
 
+def tracing_enabled() -> bool:
+    """LangSmith tracing is configured purely by env vars (LANGSMITH_TRACING etc.)."""
+    return os.environ.get("LANGSMITH_TRACING", "").strip().lower() == "true" and bool(
+        os.environ.get("LANGSMITH_API_KEY")
+    )
+
+
 def check() -> int:
     load_dotenv()
     ok = True
@@ -36,6 +43,9 @@ def check() -> int:
         is_set = bool(os.environ.get(var))
         print(f"  [{'set' if is_set else 'missing'}]".ljust(12) + var)
         ok = ok and is_set
+    # LangSmith is optional: report presence only, never values.
+    print(f"  [{'on' if tracing_enabled() else 'off'}]".ljust(12) + "LangSmith tracing "
+          f"(LANGSMITH_TRACING + LANGSMITH_API_KEY; project={os.environ.get('LANGSMITH_PROJECT', 'default')})")
     print("Environment ready." if ok else "Environment NOT ready.")
     return 0 if ok else 1
 
@@ -59,8 +69,16 @@ def run(query: str) -> int:
     print("Running agent (planning, researching, synthesizing - this can take a few minutes)...")
     result = agent.invoke(
         {"messages": [{"role": "user", "content": query}]},
-        config={"recursion_limit": 100},
+        # run_name/tags/metadata label the root trace in LangSmith (no effect when tracing is off).
+        config={
+            "recursion_limit": 100,
+            "run_name": "financial-comparison",
+            "tags": ["fin-agent-poc"],
+            "metadata": {"query": query[:300]},
+        },
     )
+    if tracing_enabled():
+        print(f"LangSmith trace sent to project '{os.environ.get('LANGSMITH_PROJECT', 'default')}'.")
     print("\n" + result["messages"][-1].text)
     saved = [
         m.text.split(" to ", 1)[1].rsplit(" (", 1)[0]
