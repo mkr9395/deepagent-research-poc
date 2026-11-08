@@ -270,7 +270,10 @@ class StepTracker(BaseCallbackHandler):
             self.emit({"k": "step_end", "id": str(run_id), "result": result, "error": error})
 
     def on_chain_start(self, serialized, inputs, *, run_id, parent_run_id=None, **kwargs):
-        self._inside_task(run_id, parent_run_id)
+        inside = self._inside_task(run_id, parent_run_id)
+        name = kwargs.get("name") or (serialized or {}).get("name") or ""
+        if "Middleware" in name:  # e.g. "TodoListMiddleware.after_model"; names vary by deepagents version
+            self.emit({"k": "mw", "name": name, "who": "researcher" if inside else "orchestrator"})
 
     def on_chat_model_start(self, serialized, messages, *, run_id, parent_run_id=None, **kwargs):
         if not self._inside_task(run_id, parent_run_id):
@@ -289,7 +292,9 @@ class StepTracker(BaseCallbackHandler):
         for tc in calls:
             if tc.get("name") == "write_todos":
                 sid = str(tc.get("id") or f"todos-{run_id}")
-                self.emit({"k": "step", "id": sid, "tool": "write_todos",
+                todos = [{"content": str(t.get("content", "")), "status": str(t.get("status", "pending"))}
+                         for t in (tc.get("args") or {}).get("todos") or [] if isinstance(t, dict)]
+                self.emit({"k": "step", "id": sid, "tool": "write_todos", "todos": todos,
                            "detail": describe_step("write_todos", tc.get("args") or {})})
                 self.emit({"k": "step_end", "id": sid, "result": "todo list updated", "error": False})
 
@@ -355,10 +360,35 @@ def collect_steps(events: list[dict]) -> tuple[list[dict], bool]:
     return steps, derived
 
 
+def render_todos(steps: list[dict]) -> None:
+    todos = next((s["todos"] for s in reversed(steps) if s.get("todos")), None)
+    if not todos:
+        return
+    icons = {"completed": "✅", "in_progress": "🔄", "pending": "⬜"}
+    done = sum(t["status"] == "completed" for t in todos)
+    st.markdown(f"**Plan** ({done}/{len(todos)} done)")
+    for t in todos:
+        st.markdown(f"{icons.get(t['status'], '⬜')} {md_safe(t['content'])}")
+
+
+def render_middleware(events: list[dict]) -> None:
+    counts: dict = {}
+    for e in events:
+        if e["k"] == "mw":
+            key = (e["who"], e["name"])
+            counts[key] = counts.get(key, 0) + 1
+    if counts:
+        with st.expander(f"Middleware activity ({sum(counts.values())} hook calls)", expanded=False):
+            for (who, name), n in sorted(counts.items()):
+                st.caption(f"{who} · `{name}` ×{n}")
+
+
 def render_steps(events: list[dict], running: bool) -> None:
     steps, derived = collect_steps(events)
     if not steps:
         return
+    render_todos(steps)
+    render_middleware(events)
     with st.expander(f"Orchestrator steps ({len(steps)})", expanded=True):
         if derived:
             st.caption("Reconstructed from the run log (this run was saved before step capture existed).")
