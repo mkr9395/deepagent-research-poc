@@ -1,0 +1,476 @@
+{
+ "query": "compare tesla vs walmart on only revenue and profitability in fiscal year 2025.",
+ "events": [
+  {
+   "k": "mw",
+   "name": "PatchToolCallsMiddleware.before_agent",
+   "who": "orchestrator",
+   "t": 0.0870819091796875
+  },
+  {
+   "k": "step",
+   "id": "01a1be7b-8336-7417-8507-193152d26e89",
+   "tool": "llm",
+   "detail": "deciding the next action",
+   "t": 1.649082899093628
+  },
+  {
+   "k": "step_end",
+   "id": "01a1be7b-8336-7417-8507-193152d26e89",
+   "result": "",
+   "error": false,
+   "t": 8.778885841369629
+  },
+  {
+   "k": "step",
+   "id": "01a1be7b-9f14-728c-9c45-2f33ebb4053c",
+   "tool": "submit_research_plan",
+   "detail": "1 task(s): What were Tesla's and Walmart's fiscal year 2025 revenue, year-over-year revenue growth, \u2026",
+   "t": 8.78288722038269
+  },
+  {
+   "k": "plan",
+   "t": 8.783886671066284,
+   "n": 1,
+   "dims": "['revenue', 'profitability']",
+   "skipped": "[]"
+  },
+  {
+   "k": "step_end",
+   "id": "01a1be7b-9f14-728c-9c45-2f33ebb4053c",
+   "result": "Plan accepted: 1 research task(s). Delegate exactly these with the `task` tool, then read the notes and write the report.",
+   "error": false,
+   "t": 8.783886671066284
+  },
+  {
+   "k": "step",
+   "id": "01a1be7b-9f21-7176-94b8-2ae6bbb9d4c2",
+   "tool": "llm",
+   "detail": "deciding the next action",
+   "t": 8.796125173568726
+  },
+  {
+   "k": "step_end",
+   "id": "01a1be7b-9f21-7176-94b8-2ae6bbb9d4c2",
+   "result": "",
+   "error": false,
+   "t": 15.085237503051758
+  },
+  {
+   "k": "step",
+   "id": "01a1be7b-b7b6-7640-98b3-6b4d6652c354",
+   "tool": "task",
+   "detail": "Research this single question for Tesla and Walmart: What were each company's fiscal year 2025 revenue, year-over-year revenue growth, net income and comparable profitability margins, and their fiscal year-end dates? Us\u2026",
+   "t": 15.090030670166016
+  },
+  {
+   "k": "mw",
+   "name": "PatchToolCallsMiddleware.before_agent",
+   "who": "researcher",
+   "t": 15.092018127441406
+  },
+  {
+   "k": "mw",
+   "name": "ResearchGuardMiddleware.before_agent",
+   "who": "researcher",
+   "t": 15.093064069747925
+  },
+  {
+   "k": "task_start",
+   "t": 15.093997478485107,
+   "words": 92,
+   "brief": "Research this single question for Tesla and Walmart: What were each company's fiscal year 2025 reven..."
+  },
+  {
+   "k": "step",
+   "id": "01a1be7b-b7c5-74fe-b5b4-1e8560a9752e",
+   "tool": "llm",
+   "detail": "deciding the next action",
+   "t": 15.103845357894897
+  },
+  {
+   "k": "step_end",
+   "id": "01a1be7b-b7c5-74fe-b5b4-1e8560a9752e",
+   "result": "",
+   "error": false,
+   "t": 18.4726083278656
+  },
+  {
+   "k": "step",
+   "id": "01a1be7b-c4f5-756f-b3a6-3bc1c657a9b9",
+   "tool": "tavily_search",
+   "detail": "{\"query\": \"Tesla fourth quarter 2025 earnings press release 2025 2024 total revenue net income attributable stockholders\", \"task_id\": \"tesla-walmart-fy2025-pro\u2026",
+   "t": 18.48041868209839
+  },
+  {
+   "k": "task_new",
+   "t": 18.48245668411255,
+   "n": 1,
+   "id": "tesla-walmart-fy2025-profitability"
+  },
+  {
+   "k": "search",
+   "t": 18.48245668411255,
+   "call": 1,
+   "budget": 15,
+   "task": 1,
+   "of": 1,
+   "gap": "",
+   "query": "Tesla fourth quarter 2025 earnings press release 2025 2024 total revenue net income attributable stockholders"
+  },
+  {
+   "k": "step_end",
+   "id": "01a1be7b-c4f5-756f-b3a6-3bc1c657a9b9",
+   "result": "Search results for: Tesla fourth quarter 2025 earnings press release 2025 2024 total revenue net income attributable stockholders (task 'tesla-walmart-fy2025-profitability' | request calls used 1/15, 14 left) 1. Tesla [\u2026",
+   "error": false,
+   "t": 23.058843851089478
+  },
+  {
+   "k": "step",
+   "id": "01a1be7b-d6de-739f-91da-afc55864dd23",
+   "tool": "llm",
+   "detail": "deciding the next action",
+   "t": 23.064935207366943
+  },
+  {
+   "k": "step_end",
+   "id": "01a1be7b-d6de-739f-91da-afc55864dd23",
+   "result": "",
+   "error": false,
+   "t": 29.489476919174194
+  },
+  {
+   "k": "step",
+   "id": "01a1be7b-effd-76cd-aecd-6a18d68fe502",
+   "tool": "tavily_search",
+   "detail": "{\"query\": \"Walmart fourth quarter fiscal 2025 earnings release full year total revenues net income attributable Walmart 2024\", \"task_id\": \"tesla-walmart-fy2025\u2026",
+   "t": 29.4963698387146
+  },
+  {
+   "k": "search",
+   "t": 29.4963698387146,
+   "call": 2,
+   "budget": 15,
+   "task": 1,
+   "of": 2,
+   "gap": "Need Walmart FY2025 primary-source revenues, prior-year denominator, net income attributable to Walmart, and year-end date.",
+   "query": "Walmart fourth quarter fiscal 2025 earnings release full year total revenues net income attributable Walmart 2024"
+  },
+  {
+   "k": "step_end",
+   "id": "01a1be7b-effd-76cd-aecd-6a18d68fe502",
+   "result": "Search results for: Walmart fourth quarter fiscal 2025 earnings release full year total revenues net income attributable Walmart 2024 (task 'tesla-walmart-fy2025-profitability' | request calls used 2/15, 13 left) 1. Adm\u2026",
+   "error": false,
+   "t": 34.74917769432068
+  },
+  {
+   "k": "step",
+   "id": "01a1be7c-048d-75b1-9190-a882b019b563",
+   "tool": "llm",
+   "detail": "deciding the next action",
+   "t": 34.760074853897095
+  },
+  {
+   "k": "step_end",
+   "id": "01a1be7c-048d-75b1-9190-a882b019b563",
+   "result": "",
+   "error": false,
+   "t": 38.75350642204285
+  },
+  {
+   "k": "step",
+   "id": "01a1be7c-142d-7269-9da0-ec1c182a1a19",
+   "tool": "tavily_search",
+   "detail": "{\"query\": \"site:corporate.walmart.com 2025 annual report consolidated statements income 2025 2024 680985 648125\", \"task_id\": \"tesla-walmart-fy2025-profitabilit\u2026",
+   "t": 38.76113986968994
+  },
+  {
+   "k": "search",
+   "t": 38.76218795776367,
+   "call": 3,
+   "budget": 15,
+   "task": 1,
+   "of": 3,
+   "gap": "Search did not retrieve Walmart's FY2025 annual report or complete attributable income and revenue denominator; this is the one primary-source follow-up.",
+   "query": "site:corporate.walmart.com 2025 annual report consolidated statements income 2025 2024 680985 648125"
+  },
+  {
+   "k": "step_end",
+   "id": "01a1be7c-142d-7269-9da0-ec1c182a1a19",
+   "result": "Search results for: 2025 annual report consolidated statements income 2025 2024 680985 648125 (task 'tesla-walmart-fy2025-profitability' | request calls used 3/15, 12 left) 1. Walmart Inc. 2025 Annual Report [other] URL\u2026",
+   "error": false,
+   "t": 41.22529673576355
+  },
+  {
+   "k": "step",
+   "id": "01a1be7c-1dd7-770e-a7fe-abf8dd4378b9",
+   "tool": "llm",
+   "detail": "deciding the next action",
+   "t": 41.2351450920105
+  },
+  {
+   "k": "step_end",
+   "id": "01a1be7c-1dd7-770e-a7fe-abf8dd4378b9",
+   "result": "",
+   "error": false,
+   "t": 46.44849753379822
+  },
+  {
+   "k": "step",
+   "id": "01a1be7c-3239-72d1-95ae-af5e4c365511",
+   "tool": "tavily_search",
+   "detail": "{\"query\": \"Tesla 2025 form 10-k 2025 2024 total revenues net income attributable 94827 2025 annual report\", \"task_id\": \"tesla-walmart-fy2025-profitability\", \"g\u2026",
+   "t": 46.452494382858276
+  },
+  {
+   "k": "search",
+   "t": 46.452494382858276,
+   "call": 4,
+   "budget": 15,
+   "task": 1,
+   "of": 4,
+   "gap": "Tesla FY2025 needs primary-source precise revenue, prior-year revenue, attributable net income and operating income; this is the primary-source follow-up.",
+   "query": "Tesla 2025 form 10-k 2025 2024 total revenues net income attributable 94827 2025 annual report"
+  },
+  {
+   "k": "step_end",
+   "id": "01a1be7c-3239-72d1-95ae-af5e4c365511",
+   "result": "Search results for: Tesla 2025 form 10-k 2025 2024 total revenues net income attributable 94827 2025 annual report (task 'tesla-walmart-fy2025-profitability' | request calls used 4/15, 11 left) 1. tsla-20251231 [primary\u2026",
+   "error": false,
+   "t": 49.86723875999451
+  },
+  {
+   "k": "step",
+   "id": "01a1be7c-3f9b-7304-8db8-5343c02effa9",
+   "tool": "llm",
+   "detail": "deciding the next action",
+   "t": 49.87768006324768
+  },
+  {
+   "k": "step_end",
+   "id": "01a1be7c-3f9b-7304-8db8-5343c02effa9",
+   "result": "",
+   "error": false,
+   "t": 56.22338676452637
+  },
+  {
+   "k": "step",
+   "id": "01a1be7c-5869-744d-ba31-fb99b8470077",
+   "tool": "tavily_search",
+   "detail": "{\"query\": \"Walmart 2025 annual report 2025 2024 \\\"Net income attributable to Walmart\\\" 193\", \"task_id\": \"tesla-walmart-fy2025-profitability\", \"gap_reason\": \"Wa\u2026",
+   "t": 56.22914910316467
+  },
+  {
+   "k": "search",
+   "t": 56.22914910316467,
+   "call": 5,
+   "budget": 15,
+   "task": 1,
+   "of": 5,
+   "gap": "Walmart's reported net income attributable to Walmart, essential for consistent margins, was absent from the annual-report excerpt; retrieve that exact line.",
+   "query": "Walmart 2025 annual report 2025 2024 \"Net income attributable to Walmart\" 193"
+  },
+  {
+   "k": "step_end",
+   "id": "01a1be7c-5869-744d-ba31-fb99b8470077",
+   "result": "Search results for: Walmart 2025 annual report 2025 2024 Net income attributable to Walmart 193 (task 'tesla-walmart-fy2025-profitability' | request calls used 5/15, 10 left) 1. wmt-20250131 [primary] URL: https://www.s\u2026",
+   "error": false,
+   "t": 59.97840356826782
+  },
+  {
+   "k": "step",
+   "id": "01a1be7c-6717-77dd-9430-dad819d239ae",
+   "tool": "llm",
+   "detail": "deciding the next action",
+   "t": 59.98655104637146
+  },
+  {
+   "k": "step_end",
+   "id": "01a1be7c-6717-77dd-9430-dad819d239ae",
+   "result": "",
+   "error": false,
+   "t": 76.88244771957397
+  },
+  {
+   "k": "step",
+   "id": "01a1be7c-a91b-72f4-a991-770e4bcfd019",
+   "tool": "write_file",
+   "detail": "{\"file_path\": \"/notes/tesla-walmart-fy2025-profitability.md\", \"content\": \"## Research Question\\nFor Tesla and Walmart, compare FY2025 revenue, year-over-year r\u2026",
+   "t": 76.88706469535828
+  },
+  {
+   "k": "step_end",
+   "id": "01a1be7c-a91b-72f4-a991-770e4bcfd019",
+   "result": "Updated file /notes/tesla-walmart-fy2025-profitability.md",
+   "error": false,
+   "t": 76.88808298110962
+  },
+  {
+   "k": "step",
+   "id": "01a1be7c-a925-7200-88a5-245975066273",
+   "tool": "llm",
+   "detail": "deciding the next action",
+   "t": 76.89590525627136
+  },
+  {
+   "k": "step_end",
+   "id": "01a1be7c-a925-7200-88a5-245975066273",
+   "result": "",
+   "error": false,
+   "t": 81.76647996902466
+  },
+  {
+   "k": "mw",
+   "name": "ResearchGuardMiddleware.after_agent",
+   "who": "researcher",
+   "t": 81.76892375946045
+  },
+  {
+   "k": "task_done",
+   "t": 81.77039241790771,
+   "reply_words": 99,
+   "note": "/notes/tesla-walmart-fy2025-profitability.md",
+   "note_words": 385,
+   "msgs": 14,
+   "tools": 6,
+   "searches": 5,
+   "chars": 17383
+  },
+  {
+   "k": "step_end",
+   "id": "01a1be7b-b7b6-7640-98b3-6b4d6652c354",
+   "result": "Notes file: /notes/tesla-walmart-fy2025-profitability.md - **Tesla:** FY2025 ended December 31, 2025. Revenue was **$94.827 billion**, down **2.93%** year over year; net income attributable to common\u2026",
+   "error": false,
+   "t": 81.77039241790771
+  },
+  {
+   "k": "step",
+   "id": "01a1be7c-bc37-7776-8293-bcd986a71467",
+   "tool": "llm",
+   "detail": "deciding the next action",
+   "t": 81.7780168056488
+  },
+  {
+   "k": "step_end",
+   "id": "01a1be7c-bc37-7776-8293-bcd986a71467",
+   "result": "",
+   "error": false,
+   "t": 84.60526466369629
+  },
+  {
+   "k": "step",
+   "id": "01a1be7c-c748-7077-8dfe-b4652b5ea54e",
+   "tool": "read_file",
+   "detail": "/notes/tesla-walmart-fy2025-profitability.md",
+   "t": 84.61169767379761
+  },
+  {
+   "k": "step_end",
+   "id": "01a1be7c-c748-7077-8dfe-b4652b5ea54e",
+   "result": "loaded 391 words into the lead's context",
+   "error": false,
+   "t": 84.64130282402039
+  },
+  {
+   "k": "read",
+   "t": 84.64229846000671,
+   "path": "/notes/tesla-walmart-fy2025-profitability.md",
+   "words": 391
+  },
+  {
+   "k": "step",
+   "id": "01a1be7c-c770-73e6-8907-82fbebce7354",
+   "tool": "llm",
+   "detail": "deciding the next action",
+   "t": 84.65161657333374
+  },
+  {
+   "k": "step_end",
+   "id": "01a1be7c-c770-73e6-8907-82fbebce7354",
+   "result": "",
+   "error": false,
+   "t": 97.37050414085388
+  },
+  {
+   "k": "step",
+   "id": "01a1be7c-f928-77ff-b01b-81da794a63cc",
+   "tool": "save_final_report",
+   "detail": "394 words",
+   "t": 97.37930655479431
+  },
+  {
+   "k": "step_end",
+   "id": "01a1be7c-f928-77ff-b01b-81da794a63cc",
+   "result": "Saved final report to D:/claude/deepagent-research-poc/outputs/tesla-walmart_final_report.md (394 words).",
+   "error": false,
+   "t": 97.3834159374237
+  },
+  {
+   "k": "saved",
+   "t": 97.3834159374237
+  },
+  {
+   "k": "step",
+   "id": "01a1be7c-f93a-71b7-a767-7db8f2d22977",
+   "tool": "llm",
+   "detail": "deciding the next action",
+   "t": 97.39775395393372
+  },
+  {
+   "k": "step_end",
+   "id": "01a1be7c-f93a-71b7-a767-7db8f2d22977",
+   "result": "",
+   "error": false,
+   "t": 99.53903865814209
+  },
+  {
+   "k": "step",
+   "id": "01a1be7d-019f-7326-9d5a-ce0b6d195179",
+   "tool": "verify_final_report",
+   "detail": "re-read the saved report and check it against the original request",
+   "t": 99.5461757183075
+  },
+  {
+   "k": "verify",
+   "t": 99.57822346687317,
+   "ok": true,
+   "text": "no obvious gaps"
+  },
+  {
+   "k": "step_end",
+   "id": "01a1be7d-019f-7326-9d5a-ce0b6d195179",
+   "result": "Verified D:/claude/deepagent-research-poc/outputs/tesla-walmart_final_report.md against the original request (original_request.md). No obvious gaps: companies, requested factors, sources and sections are present. You ma\u2026",
+   "error": false,
+   "t": 99.57822346687317
+  },
+  {
+   "k": "step",
+   "id": "01a1be7d-01c6-760e-9274-7d222170a510",
+   "tool": "llm",
+   "detail": "deciding the next action",
+   "t": 99.58592367172241
+  },
+  {
+   "k": "step_end",
+   "id": "01a1be7d-01c6-760e-9274-7d222170a510",
+   "result": "",
+   "error": false,
+   "t": 102.46916699409485
+  },
+  {
+   "k": "mw",
+   "name": "_ParentNotifierMiddleware.after_agent",
+   "who": "orchestrator",
+   "t": 102.47307133674622
+  }
+ ],
+ "duration": 102.76495790481567,
+ "status": "ok",
+ "usage": "LLM usage for this request:\nagent          calls unfinished  input tok output tok  cached in\norchestrator       6          0      33937       1381      26861\nresearcher         7          0      51408       2617      40081\nTOTAL             13          0      85345       3998      66942",
+ "saved_at": "2026-11-09T09:37:09",
+ "report_path": "D:/claude/deepagent-research-poc/outputs/tesla-walmart_final_report.md",
+ "report_md": "# Tesla vs. Walmart: FY2025 revenue and profitability\n\n## Executive Summary\n- Walmart generated **$681.0 billion in revenue**, about **7.18 times** Tesla\u2019s $94.8 billion; its revenue grew **5.07%**, while Tesla\u2019s fell **2.93%**. [1\u20134]\n- Walmart\u2019s attributable net income was **$19.44 billion**, versus Tesla\u2019s **$3.79 billion**. Tesla nonetheless had the higher calculated net margin: **4.00% versus 2.85%**. [1\u20134]\n- **The periods are not aligned:** Walmart\u2019s FY2025 ended January 31, 2025; Tesla\u2019s ended December 31, 2025. They overlap for only one month. [1,3]\n\n## Revenue and profitability comparison\n\nDollar figures are US$ billions. Margins and year-over-year growth are calculated from the reported figures.\n\n| Measure | Tesla FY2025 | Walmart FY2025 |\n|---|---:|---:|\n| Revenue | $94.827 [1,2] | $680.985 [3] |\n| Revenue growth vs. FY2024 | \u22122.93% [2] | +5.07% [3] |\n| Net income attributable to owners | $3.794 [1,2] | $19.436 [4] |\n| Net margin | 4.00% [2] | 2.85% [3,4] |\n| Operating income | $4.355 [2] | $29.348 [3] |\n| Operating margin | 4.59% [2] | 4.31% [3] |\n\n**Key differences \u2014 revenue:** Walmart\u2019s revenue was approximately **$586.16 billion greater**; its growth rate exceeded Tesla\u2019s by **8.00 percentage points** (calculated). These comparisons use different annual periods. [1\u20133]\n\n**Key differences \u2014 profitability:** Walmart earned approximately **$15.64 billion more** in attributable net income, while Tesla\u2019s net margin was higher by **1.15 percentage points** and its operating margin by **0.28 percentage points** (calculated). This suggests Tesla retained more income per revenue dollar in its fiscal year, whereas Walmart earned more in absolute dollars. [1\u20134]\n\n## Overall Comparison\nWalmart was substantially larger by both revenue and net income and reported positive revenue growth; Tesla had modestly higher margins but declining revenue. Different year-ends limit any like-for-like conclusion. [1\u20134]\n\n**Evidence gaps and uncertainty:** Tesla\u2019s precise figures in the table come from a secondary analysis; its 2025 filing corroborated rounded revenue and attributable net income, but the research did not independently verify every exact figure from the filing. Net margins use income attributable to owners over consolidated revenue, excluding noncontrolling interests from the numerator. Walmart\u2019s FY2025 net income is sourced from the comparative figures in its subsequent annual report. [1,2,4]\n\n## Sources\n1. [Tesla FY2025 Form 10-K](https://www.sec.gov/Archives/edgar/data/1318605/000162828026003952/tsla-20251231.htm).\n2. [SEC API, Tesla FY2025 financial analysis](https://sec-api.io/insights/financial-analysis-of-tesla-fy2025-and-the-first-half-of-2026) \u2014 secondary source.\n3. [Walmart 2025 annual report](https://corporate.walmart.com/content/dam/corporate/documents/newsroom/2025/04/24/walmart-releases-2025-annual-report-and-proxy-statement/walmart-inc-2025-annual-report.pdf), released April 24, 2025.\n4. [Walmart 2026 annual report](https://stock.walmart.com/_assets/_8c8425b76a1d46bbbbc16466da2a6b9c/walmart/db/950/9988/annual_report/Walmart+2026+Annual+Report.pdf), comparative FY2025 figures.\n",
+ "notes": {
+  "tesla-walmart-fy2025-profitability.md": "## Research Question\nFor Tesla and Walmart, compare FY2025 revenue, year-over-year revenue growth, parent-attributable net income, profitability margins and fiscal year-ends.\n\n## Key Findings\n- [Fact] Tesla\u2019s FY2025 ended December 31, 2025; Walmart\u2019s ended January 31, 2025. Their identically named fiscal years therefore overlap for only one month.\n- [Interpretation] Calculated revenue growth was \u22122.93% for Tesla and +5.07% for Walmart, using each company\u2019s preceding fiscal year as the denominator.\n- [Interpretation] Calculated parent-attributable net margins were 4.00% for Tesla and 2.85% for Walmart. Calculated operating margins were 4.59% and 4.31%, respectively. All use total revenue as denominator.\n\n## Financial Facts\nAll dollar figures are US$ millions, GAAP, unless stated otherwise.\n\n| Measure | Tesla FY2025 | Walmart FY2025 |\n|---|---:|---:|\n| Fiscal year-end | December 31, 2025 | January 31, 2025 |\n| Total revenue, FY2025 | 94,827 | 680,985 |\n| Total revenue, FY2024 | 97,690 | 648,125 |\n| Revenue growth, calculated | (94,827 \u2212 97,690) / 97,690 = \u22122.93% | (680,985 \u2212 648,125) / 648,125 = 5.07% |\n| Net income attributable to common stockholders / Walmart | 3,794 | 19,436 |\n| Net margin, calculated | 3,794 / 94,827 = 4.00% | 19,436 / 680,985 = 2.85% |\n| Operating income | 4,355 | 29,348 |\n| Operating margin, calculated | 4,355 / 94,827 = 4.59% | 29,348 / 680,985 = 4.31% |\n\nTesla\u2019s 2025 Form 10-K reports rounded revenue and common-stockholder income; the precise Tesla table figures above are from secondary analysis: https://www.sec.gov/Archives/edgar/data/1318605/000162828026003952/tsla-20251231.htm and https://sec-api.io/insights/financial-analysis-of-tesla-fy2025-and-the-first-half-of-2026. Walmart revenue and operating income: https://corporate.walmart.com/content/dam/corporate/documents/newsroom/2025/04/24/walmart-releases-2025-annual-report-and-proxy-statement/walmart-inc-2025-annual-report.pdf. Walmart attributable net income: https://stock.walmart.com/_assets/_8c8425b76a1d46bbbbc16466da2a6b9c/walmart/db/950/9988/annual_report/Walmart+2026+Annual+Report.pdf.\n\n## Sources\n- Tesla, FY2025 Form 10-K: https://www.sec.gov/Archives/edgar/data/1318605/000162828026003952/tsla-20251231.htm\n- SEC API, Tesla financial analysis (secondary): https://sec-api.io/insights/financial-analysis-of-tesla-fy2025-and-the-first-half-of-2026\n- Walmart, 2025 annual report, released April 24, 2025: https://corporate.walmart.com/content/dam/corporate/documents/newsroom/2025/04/24/walmart-releases-2025-annual-report-and-proxy-statement/walmart-inc-2025-annual-report.pdf\n- Walmart, 2026 annual report, including comparative FY2025 net income: https://stock.walmart.com/_assets/_8c8425b76a1d46bbbbc16466da2a6b9c/walmart/db/950/9988/annual_report/Walmart+2026+Annual+Report.pdf\n\n## Caveats\nThe requested FY2025 periods differ by 11 months; Walmart has since reported FY2026, but this is a fixed-FY2025 comparison, not a latest-period comparison. Tesla\u2019s precise figures were retrieved from a secondary analysis; its filing excerpt independently corroborates rounded revenue and attributable income, not every exact figure. A separate secondary profile reports $3.86 billion Tesla net income without specifying attribution; its relationship to the $3.794 billion attributable figure is unverified. Net margins use parent-attributable income, excluding noncontrolling interests, over consolidated revenue; business mixes differ materially.\n"
+ }
+}
