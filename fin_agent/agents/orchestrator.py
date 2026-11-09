@@ -25,7 +25,7 @@ from pathlib import Path
 
 from deepagents import create_deep_agent
 from dotenv import load_dotenv
-from langchain.agents.middleware import AgentMiddleware
+from langchain.agents.middleware import AgentMiddleware, TodoListMiddleware
 from langchain_core.messages import ToolMessage
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
@@ -540,7 +540,8 @@ def build_orchestrator(
         tools=[planner.submit_research_plan, save_report, verify_report],
         system_prompt=ORCHESTRATOR_PROMPT,
         subagents=[get_researcher_subagent(model=researcher_model)],
-        middleware=[OrchestratorGuardMiddleware(planner)],
+        # deepagents no longer adds `write_todos` by default; TodoListMiddleware provides it.
+        middleware=[TodoListMiddleware(), OrchestratorGuardMiddleware(planner)],
         backend=backend or get_backend(),
         name="orchestrator",
     )
