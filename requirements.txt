@@ -13,5 +13,8 @@ langsmith
 # Load API keys from .env
 python-dotenv
 
+# Demo UI (streamlit run streamlit_app.py)
+streamlit
+
 # Lightweight testing
 pytest

@@ -1,68 +1,53 @@
-# Microsoft vs. Alphabet: Growth, Profitability, Risks and Outlook
+# Microsoft vs. Alphabet: annual results, regulatory risk and outlook
 
 ## Executive Summary
+- Alphabet had greater annual revenue: $402.836 billion versus Microsoft’s $331.839 billion. Microsoft grew faster, 18% versus 15%, although the fiscal periods differ. [1][2]
+- Microsoft’s calculated operating margin was 46.8%, versus Alphabet’s 32.0%; its net margin was 40.3% versus 32.8%. [1][2]
+- The EU accepted Microsoft’s commitments concerning Teams, according to secondary reporting. The retrieved evidence did not establish an Alphabet enforcement outcome or either company’s specific 10-K risk factors, so relative legal exposure cannot be assessed. [3–5]
+- Microsoft guided to 18–19% fiscal second-quarter revenue growth; Alphabet maintained substantial 2026 capital-expenditure guidance. These are different measures. Recent attributable analyst commentary for neither company was verified. [6][7]
 
-- **Scale and growth:** Alphabet reported $402.8 billion in revenue in its fiscal year ended December 2025, versus Microsoft’s $331.8 billion in the year ended June 2026. Microsoft grew faster: 18% versus 15%. The periods are six months apart, so this is not a strictly like-for-like comparison. [1][3]
-- **Profitability:** Microsoft’s calculated operating margin was 46.8%, versus Alphabet’s 32.0%, a 14.8-percentage-point advantage. Its calculated net margin was 40.3% versus 32.8%. [1][3]
-- **Risk:** Both face AI-related execution and competitive uncertainty. Alphabet also faces a US search judgment and ad-tech litigation; Microsoft faces binding European commitments concerning Teams. Their legal situations are not equivalent. [4–8]
-- **Outlook:** Microsoft guided to approximately 45% constant-currency Azure and other cloud services growth in its next fiscal quarter; Alphabet raised its 2026 capital spending forecast to $195–205 billion. These are different metrics, not directly comparable growth forecasts. [2][9]
+## Revenue growth and profitability
 
-## Revenue Growth and Profitability
-
-| Metric | Microsoft FY2026, ended June 30, 2026 | Alphabet FY2025, ended December 31, 2025 |
+| Annual measure | Microsoft FY2026, ended June 30 | Alphabet FY2025, ended December 31 |
 |---|---:|---:|
 | Revenue | $331.839bn | $402.836bn |
-| Prior-year revenue | $281.724bn | $350.018bn |
-| Reported revenue growth | 18% | 15% |
+| Revenue growth, year over year | 18% | 15% |
 | Operating income | $155.237bn | $129.039bn |
-| Net income | $133.749bn | $132.170bn |
 | Operating margin, calculated | 46.8% | 32.0% |
+| Net income | $133.749bn | $132.170bn |
 | Net margin, calculated | 40.3% | 32.8% |
 
-Source: company earnings releases. Margins are calculated as operating income or net income divided by revenue. [1][3]
+**Evidence:** Microsoft figures are from its 10-K; Alphabet’s are from its annual earnings release. Margins are calculated from reported income divided by revenue. [1][2]
 
-**Microsoft.** Management attributed revenue growth to demand for Azure and first-party AI applications and services. Operating income grew 21%, faster than revenue, and management cited operating leverage. [2]
+**Key differences:** Alphabet’s revenue was $70.997bn greater, calculated, while Microsoft’s growth rate was 3 percentage points higher and its operating margin 14.8 points higher, using rounded figures. Microsoft generated slightly more net income despite lower revenue. These are comparisons of different 12-month periods, not a synchronized year. Net margins also reflect non-operating items and taxes. [1][2]
 
-**Alphabet.** Alphabet reported $29.787 billion in net other income, compared with $7.425 billion a year earlier. This is non-operating income, and helps explain why Alphabet’s net margin was closer to Microsoft’s than its operating margin was; it should not be treated as operating profitability. [3]
+## Regulatory and antitrust risks
 
-**Key differences.** Alphabet’s reported revenue was approximately $71.0 billion greater, calculated from the figures above, while Microsoft’s reported growth was 3 percentage points faster. Microsoft’s operating margin was 14.8 points higher and its net margin 7.5 points higher. Higher operating margin suggests Microsoft retained more operating income per dollar of revenue during the respective periods. The different fiscal year-ends limit the comparison: Alphabet’s year ended six months earlier. Microsoft reported 16% constant-currency revenue growth versus 18% reported; Alphabet reported 15% on both bases. Detailed Alphabet segment growth and the composition of its other income were not established in the reviewed evidence. [1–3]
+**Microsoft:** The European Commission opened an investigation in 2023 into Teams bundling with Office after a Slack complaint. The Wall Street Journal subsequently reported that the Commission accepted Microsoft’s commitments, settling the probe; the retrieved evidence does not establish an infringement. The decision date, exact commitments and appeal status were not retrieved. [3]
 
-## Risk Analysis
+**Alphabet:** Its FY2025 10-K was located, but its specific risk-factor disclosures and a recent enforcement outcome were not substantiated in the retrieved evidence. [4]
 
-**Microsoft.** The company describes execution and competitive risks associated with cloud and AI and significant investment in those services. The risk that investment outpaces commercial returns is an interpretation of that exposure, not a quantified loss forecast. Its disclosures also flag economic developments and changing trade policies. [4][5] In September 2025 the European Commission made Teams-related commitments legally binding to address concerns about tying Teams to business Office/Microsoft 365 suites; this was a commitments decision, not an infringement finding. [6]
+**Key differences:** The Teams matter provides evidence of a Microsoft competition concern and a reported settlement, but the missing Alphabet enforcement evidence and missing specific risk factors for both companies preclude a meaningful comparison of exposure or remedies. Microsoft’s FY2026 10-K was also located, but the relevant risk-factor details were not verified. [1][3][4]
 
-**Alphabet.** Alphabet’s FY2025 filing identifies risks from inaccurate or harmful AI output, intellectual-property infringement, privacy and cybersecurity, including potential legal, regulatory and competitive harm. [7] In US search, a final judgment was entered in December 2025 after a finding of unlawful monopolization; the DOJ docket records a technical committee appointment in January 2026. A secondary legal explainer describes restrictions on exclusive distribution agreements and data-sharing obligations. Current appeal status was not verified. [8][10] In ad technology, DOJ plaintiffs stated in a September 2025 filing that the court found Google unlawfully maintained monopolies in publisher ad servers and ad exchanges; this account comes from a party filing, and final remedies and subsequent status were not independently verified. [11]
+## Business outlook
 
-**Key differences.** Both have AI and execution exposure, but the evidence reviewed points to different regulatory postures: Alphabet has an adverse US search judgment and a separately reported ad-tech finding, whereas Microsoft’s EU Teams matter resulted in binding commitments without an infringement finding. The financial impact of these matters and the companies’ respective risk exposures cannot be ranked reliably from the available evidence. [4][6–8][11]
+**Microsoft:** Management guided fiscal Q2 2027 revenue to $96.0–$97.1bn, representing 18–19% growth, according to a secondary-hosted earnings-call transcript published October 29, 2026. [6]
 
-## Outlook
+**Alphabet:** Management maintained 2026 capital-expenditure guidance of $195–$205bn and expects spending to increase significantly in 2027, according to a secondary-hosted earnings-call transcript. Reuters also reported the 2027 expectation on October 29, 2026. [7][8]
 
-**Microsoft.** Management guided Azure and other cloud services to approximately 45% year-over-year growth at constant currency in FY2027 Q1. It said demand exceeded capacity, while efficiency and earlier capacity delivery helped it meet demand; it also cited stronger-than-expected GitHub Copilot consumption. These are management’s expectations and assessments, not assured outcomes. The call date was not verified, and this was the latest guidance verified in the research, not necessarily the latest available. [2]
-
-**Alphabet.** In its Q2 2026 call, management raised expected 2026 capital expenditure to $195–205 billion from $180–190 billion, citing faster capacity delivery to meet demand, and expected a significant further increase in 2027. [9][12] A secondary transcript reports that management planned to use more third-party capacity in Q3 2026 while building its own, with modest near-term margin pressure. [13]
-
-**Key differences.** Microsoft’s figure is a near-term *service growth forecast*; Alphabet’s is a *full-year investment forecast*, so neither establishes which company will grow faster overall. Both management narratives emphasize demand and capacity. Alphabet’s increased spending and reported near-term margin pressure illustrate the trade-off between expanding capacity and near-term economics; Microsoft’s demand exceeding capacity highlights a delivery constraint as well as an opportunity. [2][9][13]
+**Key differences:** Microsoft’s cited guidance is a near-term revenue forecast; Alphabet’s is a capital-spending outlook. They cannot be compared as like-for-like growth forecasts. Both are management expectations, not assured outcomes. Neither company’s recent, dated analyst commentary was verified.
 
 ## Overall Comparison
+Alphabet was larger by revenue in the reported years, while Microsoft grew faster and had higher operating and net margins. The available risk and outlook evidence is too incomplete or dissimilar to establish which company has lower regulatory exposure or a stronger forward outlook.
 
-Alphabet had the larger reported annual revenue base, while Microsoft grew faster and had substantially higher operating and net margins in the respective fiscal years. Both outlooks depend in part on supplying AI and cloud capacity, but their guidance is expressed in different metrics. Alphabet’s documented US antitrust matters and Microsoft’s Teams commitments create distinct regulatory considerations, not a directly quantifiable ranking of legal risk. [1–2][6][8–9][11]
-
-### Evidence gaps and uncertainty
-
-The financial years end six months apart, and the historical results do not establish performance over the same 12-month period. Alphabet’s detailed segment growth and composition of other income were not established. Microsoft’s risk evidence includes FY2025 and FY2026 Q1 disclosures rather than a verified latest annual risk review. Alphabet’s search appeal status and ad-tech remedies were not independently verified, and potential losses for either company were not quantified. The Alphabet margin outlook relies on a secondary transcript; Microsoft’s latest available guidance could be later than the latest verified call. Forecasts are uncertain and should not be mistaken for results.
+**Evidence gaps and uncertainty:** The specific 10-K risk factors for both companies, an Alphabet enforcement outcome, the detailed Microsoft Teams remedy and recent attributable analyst commentary for both companies were not verified. Guidance figures rely on secondary-hosted transcripts; the Alphabet transcript’s publication date was not retrieved. Fiscal periods differ. The absence of retrieved evidence is not evidence that risks or actions do not exist.
 
 ## Sources
-
-1. Microsoft, FY2026 Q4 and fiscal-year earnings release, July 29, 2026: https://www.microsoft.com/en-us/investor/earnings/fy-2026-q4/press-release-webcast
-2. Microsoft, FY2026 Q4 earnings call, publication date not verified: https://www.microsoft.com/en-us/investor/events/fy-2026/earnings-fy-2026-q4
-3. Alphabet, Q4 and FY2025 earnings release, publication date not established: https://s206.q4cdn.com/479360582/files/doc_financials/2025/q4/2025q4-alphabet-earnings-release.pdf
-4. Microsoft, FY2026 Q1 Form 10-Q, October 29, 2025: https://microsoft.gcs-web.com/static-files/b0a66351-38cf-4147-a907-191d774531bb
-5. Microsoft, FY2025 annual report: https://www.microsoft.com/investor/reports/ar25/index.html
-6. European Commission, 2025 competition report: https://competition-policy.ec.europa.eu/document/download/0011426b-7b98-49aa-ba0f-a728544af722_en?filename=annual-competition-report_2025_report_part2_swd_EN.pdf
-7. Alphabet, FY2025 Form 10-K: https://s206.q4cdn.com/479360582/files/doc_financials/2025/q4/GOOG-10-K-2025.pdf
-8. US Department of Justice, Google search case docket: https://www.justice.gov/atr/case/us-and-plaintiff-states-v-google-llc
-9. Alphabet, Q2 2026 earnings call: https://abc.xyz/investor/events/event-details/2026/2026-Q2-Earnings-Call-2026-GgTAq7Is0z/default.aspx
-10. LawLion, secondary search-case legal explainer: https://thelawlion.com/cases/united-states-v-google
-11. US Department of Justice, ad-tech plaintiffs’ filing, September 19, 2025: https://www.justice.gov/atr/media/1420131/dl
-12. CNBC, Alphabet earnings coverage, July 22, 2026: https://www.cnbc.com/2026/07/22/google-earnings-q2-goog-live-updates.html
-13. Yahoo Finance, secondary transcript of Alphabet Q2 2026 earnings call: https://finance.yahoo.com/quote/GOOG/earnings/GOOG-Q2-2026-earnings_call-657320.html
+1. Microsoft, FY2026 Form 10-K: https://www.sec.gov/Archives/edgar/data/789019/000119312526323660/msft-20260630.htm
+2. Alphabet, FY2025 annual earnings release: https://s206.q4cdn.com/479360582/files/doc_financials/2025/q4/2025q4-alphabet-earnings-release.pdf
+3. The Wall Street Journal, Teams commitments, date not retrieved: https://www.wsj.com/tech/eu-accepts-microsoft-commitments-to-address-competition-concerns-over-teams-66ace2fb?eafs_enabled=false
+4. Alphabet, FY2025 Form 10-K: https://www.sec.gov/Archives/edgar/data/1652044/000165204426000018/goog-20251231.htm
+5. Microsoft, FY2026 Form 10-K: https://www.sec.gov/Archives/edgar/data/789019/000119312526323660/msft-20260630.htm
+6. The Motley Fool, Microsoft earnings-call transcript, October 29, 2026: https://www.fool.com/earnings/call-transcripts/2026/10/29/microsoft-msft-q1-2027-earnings-call-transcript
+7. Yahoo Finance, Alphabet earnings-call transcript, publication date not retrieved: https://finance.yahoo.com/quote/GOOG.SW/earnings/GOOG.SW-Q3-2026-earnings_call-712854.html
+8. Reuters, October 29, 2026: https://www.reuters.com/business/cash-is-king-investors-draw-new-battle-lines-ai-spending-boom-2026-10-29

@@ -1,0 +1,260 @@
+{
+ "query": "Compare Microsoft and Alphabet on three separate things: (1) revenue growth and profitability from their latest annual earnings, (2) regulatory and antitrust risks from their latest 10-K risk factors and recent enforcement actions, and (3) business outlook from management guidance and recent analyst commentary. Research these three topics as three separate research tasks.",
+ "events": [
+  {
+   "k": "plan",
+   "t": 8.387999999991735,
+   "n": 3,
+   "dims": "['revenue growth and profitability from their latest annual earnings', 'regulatory and antitrust risks from their latest 10-K risk factors and recent enforcement actions', 'business outlook from management guidance and recent analyst commentary']",
+   "skipped": "[]"
+  },
+  {
+   "k": "task_start",
+   "t": 15.793000000005122,
+   "words": 73,
+   "brief": "Research question: What were Microsoft\u2019s and Alphabet\u2019s revenue growth and profitability in their re..."
+  },
+  {
+   "k": "task_start",
+   "t": 15.802999999999884,
+   "words": 82,
+   "brief": "Research question: What regulatory and antitrust risks do Microsoft and Alphabet disclose in their l..."
+  },
+  {
+   "k": "task_start",
+   "t": 15.813999999998487,
+   "words": 58,
+   "brief": "Research question: What is Microsoft\u2019s and Alphabet\u2019s business outlook according to recent managemen..."
+  },
+  {
+   "k": "task_new",
+   "t": 19.362999999997555,
+   "n": 1,
+   "id": "microsoft-alphabet-annual-profitability"
+  },
+  {
+   "k": "search",
+   "t": 19.362999999997555,
+   "call": 1,
+   "budget": 15,
+   "task": 1,
+   "of": 1,
+   "gap": "",
+   "query": "Microsoft fourth quarter fiscal 2026 earnings press release annual revenue net income operating income 2025"
+  },
+  {
+   "k": "task_new",
+   "t": 19.4829999999929,
+   "n": 2,
+   "id": "microsoft-alphabet-antitrust-risks"
+  },
+  {
+   "k": "search",
+   "t": 19.4829999999929,
+   "call": 2,
+   "budget": 15,
+   "task": 2,
+   "of": 1,
+   "gap": "",
+   "query": "Microsoft 2026 annual report 10-K risk factors antitrust regulatory investigations"
+  },
+  {
+   "k": "task_new",
+   "t": 19.4829999999929,
+   "n": 3,
+   "id": "microsoft-alphabet-outlook"
+  },
+  {
+   "k": "search",
+   "t": 19.4829999999929,
+   "call": 3,
+   "budget": 15,
+   "task": 3,
+   "of": 1,
+   "gap": "",
+   "query": "Microsoft first quarter fiscal 2027 earnings press release guidance outlook investor relations"
+  },
+  {
+   "k": "search",
+   "t": 26.00199999999313,
+   "call": 4,
+   "budget": 15,
+   "task": 3,
+   "of": 2,
+   "gap": "Alphabet's latest management guidance and its source are needed to compare outlooks.",
+   "query": "Alphabet third quarter 2026 earnings release guidance capital expenditures 2026 investor relations"
+  },
+  {
+   "k": "search",
+   "t": 26.947000000000116,
+   "call": 5,
+   "budget": 15,
+   "task": 2,
+   "of": 2,
+   "gap": "Find Alphabet's latest annual filing and its disclosed antitrust risks and proceedings.",
+   "query": "Alphabet 2025 form 10-K annual report risk factors antitrust legal proceedings 2026"
+  },
+  {
+   "k": "search",
+   "t": 27.611999999993714,
+   "call": 6,
+   "budget": 15,
+   "task": 1,
+   "of": 2,
+   "gap": "Alphabet's latest completed fiscal-year revenue and profits, and authoritative Microsoft FY2026 figures, remain missing.",
+   "query": "Alphabet fourth quarter 2025 annual earnings press release 2025 2024 revenues net income operating income investor relations"
+  },
+  {
+   "k": "search",
+   "t": 34.06500000000233,
+   "call": 7,
+   "budget": 15,
+   "task": 3,
+   "of": 3,
+   "gap": "The Microsoft press release directs readers to its earnings call, so the primary-source Q2 guidance is still needed.",
+   "query": "Microsoft FY27 Q1 earnings call October 28 2026 fiscal Q2 outlook 96 billion 97.1 Azure"
+  },
+  {
+   "k": "search",
+   "t": 34.13000000000466,
+   "call": 8,
+   "budget": 15,
+   "task": 2,
+   "of": 3,
+   "gap": "The Microsoft FY2026 10-K, required to assess its current risk factors, was not found in the first search.",
+   "query": "Microsoft 2026 annual report form 10-k June 30 2026 regulatory competition antitrust risks"
+  },
+  {
+   "k": "search",
+   "t": 36.50199999999313,
+   "call": 9,
+   "budget": 15,
+   "task": 1,
+   "of": 3,
+   "gap": "Alphabet FY2025 annual revenue, growth and income remain missing; the earnings-release search did not retrieve its financial tables.",
+   "query": "Alphabet 2025 annual report 10-k revenues 2024 2025 operating income net income abc xyz"
+  },
+  {
+   "k": "search",
+   "t": 41.361999999993714,
+   "call": 10,
+   "budget": 15,
+   "task": 3,
+   "of": 4,
+   "gap": "Attributable, dated external analyst commentary on Microsoft's outlook is missing.",
+   "query": "Microsoft October 29 2026 quarterly earnings analysts outlook Azure AI spending Reuters"
+  },
+  {
+   "k": "search",
+   "t": 41.75,
+   "call": 11,
+   "budget": 15,
+   "task": 2,
+   "of": 4,
+   "gap": "Need Microsoft-specific risk-factor detail and the outcome and date of its material recent enforcement proceeding.",
+   "query": "Microsoft 2026 form 10-K antitrust regulation risk factors European Commission Teams competition investigation 2026 commitments"
+  },
+  {
+   "k": "search",
+   "t": 43.554999999993015,
+   "call": 12,
+   "budget": 15,
+   "task": 1,
+   "of": 4,
+   "gap": "Microsoft's latest annual FY2026 revenue and profit, and its prior-year comparison, remain unverified in a primary source.",
+   "query": "Microsoft 2026 annual report form 10-k fiscal 2026 2025 revenue operating income net income"
+  },
+  {
+   "k": "search",
+   "t": 49.06900000000314,
+   "call": 13,
+   "budget": 15,
+   "task": 3,
+   "of": 5,
+   "gap": "Recent attributable analyst views on Alphabet are still needed; source snippets should identify the analyst and publication date.",
+   "query": "Alphabet Google October 29 2026 third quarter earnings analysts AI capex cloud outlook Reuters"
+  },
+  {
+   "k": "search",
+   "t": 51.802999999999884,
+   "call": 14,
+   "budget": 15,
+   "task": 2,
+   "of": 5,
+   "gap": "Microsoft's material enforcement outcome and its date are not established by the annual-report snippets; a regulator source is needed.",
+   "query": "European Commission Microsoft Teams antitrust 2026 commitments competition decision investigation"
+  },
+  {
+   "k": "task_done",
+   "t": 67.61000000000058,
+   "reply_words": 67,
+   "note": "/notes/microsoft-alphabet-annual-profitability.md",
+   "note_words": 348,
+   "msgs": 12,
+   "tools": 5,
+   "searches": 4,
+   "chars": 13754
+  },
+  {
+   "k": "task_done",
+   "t": 68.8640000000014,
+   "reply_words": 67,
+   "note": "/notes/microsoft-alphabet-antitrust-risks.md",
+   "note_words": 301,
+   "msgs": 14,
+   "tools": 6,
+   "searches": 5,
+   "chars": 17131
+  },
+  {
+   "k": "task_done",
+   "t": 69.25100000000384,
+   "reply_words": 55,
+   "note": "/notes/microsoft-alphabet-outlook.md",
+   "note_words": 299,
+   "msgs": 14,
+   "tools": 6,
+   "searches": 5,
+   "chars": 17521
+  },
+  {
+   "k": "read",
+   "t": 72.4210000000021,
+   "path": "/notes/microsoft-alphabet-outlook.md",
+   "words": 305
+  },
+  {
+   "k": "read",
+   "t": 72.43399999999383,
+   "path": "/notes/microsoft-alphabet-antitrust-risks.md",
+   "words": 307
+  },
+  {
+   "k": "read",
+   "t": 72.43700000000536,
+   "path": "/notes/microsoft-alphabet-annual-profitability.md",
+   "words": 354
+  },
+  {
+   "k": "saved",
+   "t": 91.28699999999662
+  },
+  {
+   "k": "verify",
+   "t": 93.16300000000047,
+   "ok": true,
+   "text": "no obvious gaps"
+  }
+ ],
+ "duration": 95.16300000000047,
+ "status": "ok",
+ "usage": "LLM usage for this request:\nagent          calls unfinished  input tok output tok  cached in\norchestrator       6          0      42140       2272      32432\nresearcher        20          0     137063       6170     114102\nTOTAL             26          0     179203       8442     146534",
+ "saved_at": "2026-11-07T22:21:25",
+ "report_path": "d:\\claude\\deepagent-research-poc\\outputs\\microsoft-alphabet_final_report.md",
+ "report_md": "# Microsoft vs. Alphabet: annual results, regulatory risk and outlook\n\n## Executive Summary\n- Alphabet had greater annual revenue: $402.836 billion versus Microsoft\u2019s $331.839 billion. Microsoft grew faster, 18% versus 15%, although the fiscal periods differ. [1][2]\n- Microsoft\u2019s calculated operating margin was 46.8%, versus Alphabet\u2019s 32.0%; its net margin was 40.3% versus 32.8%. [1][2]\n- The EU accepted Microsoft\u2019s commitments concerning Teams, according to secondary reporting. The retrieved evidence did not establish an Alphabet enforcement outcome or either company\u2019s specific 10-K risk factors, so relative legal exposure cannot be assessed. [3\u20135]\n- Microsoft guided to 18\u201319% fiscal second-quarter revenue growth; Alphabet maintained substantial 2026 capital-expenditure guidance. These are different measures. Recent attributable analyst commentary for neither company was verified. [6][7]\n\n## Revenue growth and profitability\n\n| Annual measure | Microsoft FY2026, ended June 30 | Alphabet FY2025, ended December 31 |\n|---|---:|---:|\n| Revenue | $331.839bn | $402.836bn |\n| Revenue growth, year over year | 18% | 15% |\n| Operating income | $155.237bn | $129.039bn |\n| Operating margin, calculated | 46.8% | 32.0% |\n| Net income | $133.749bn | $132.170bn |\n| Net margin, calculated | 40.3% | 32.8% |\n\n**Evidence:** Microsoft figures are from its 10-K; Alphabet\u2019s are from its annual earnings release. Margins are calculated from reported income divided by revenue. [1][2]\n\n**Key differences:** Alphabet\u2019s revenue was $70.997bn greater, calculated, while Microsoft\u2019s growth rate was 3 percentage points higher and its operating margin 14.8 points higher, using rounded figures. Microsoft generated slightly more net income despite lower revenue. These are comparisons of different 12-month periods, not a synchronized year. Net margins also reflect non-operating items and taxes. [1][2]\n\n## Regulatory and antitrust risks\n\n**Microsoft:** The European Commission opened an investigation in 2023 into Teams bundling with Office after a Slack complaint. The Wall Street Journal subsequently reported that the Commission accepted Microsoft\u2019s commitments, settling the probe; the retrieved evidence does not establish an infringement. The decision date, exact commitments and appeal status were not retrieved. [3]\n\n**Alphabet:** Its FY2025 10-K was located, but its specific risk-factor disclosures and a recent enforcement outcome were not substantiated in the retrieved evidence. [4]\n\n**Key differences:** The Teams matter provides evidence of a Microsoft competition concern and a reported settlement, but the missing Alphabet enforcement evidence and missing specific risk factors for both companies preclude a meaningful comparison of exposure or remedies. Microsoft\u2019s FY2026 10-K was also located, but the relevant risk-factor details were not verified. [1][3][4]\n\n## Business outlook\n\n**Microsoft:** Management guided fiscal Q2 2027 revenue to $96.0\u2013$97.1bn, representing 18\u201319% growth, according to a secondary-hosted earnings-call transcript published October 29, 2026. [6]\n\n**Alphabet:** Management maintained 2026 capital-expenditure guidance of $195\u2013$205bn and expects spending to increase significantly in 2027, according to a secondary-hosted earnings-call transcript. Reuters also reported the 2027 expectation on October 29, 2026. [7][8]\n\n**Key differences:** Microsoft\u2019s cited guidance is a near-term revenue forecast; Alphabet\u2019s is a capital-spending outlook. They cannot be compared as like-for-like growth forecasts. Both are management expectations, not assured outcomes. Neither company\u2019s recent, dated analyst commentary was verified.\n\n## Overall Comparison\nAlphabet was larger by revenue in the reported years, while Microsoft grew faster and had higher operating and net margins. The available risk and outlook evidence is too incomplete or dissimilar to establish which company has lower regulatory exposure or a stronger forward outlook.\n\n**Evidence gaps and uncertainty:** The specific 10-K risk factors for both companies, an Alphabet enforcement outcome, the detailed Microsoft Teams remedy and recent attributable analyst commentary for both companies were not verified. Guidance figures rely on secondary-hosted transcripts; the Alphabet transcript\u2019s publication date was not retrieved. Fiscal periods differ. The absence of retrieved evidence is not evidence that risks or actions do not exist.\n\n## Sources\n1. Microsoft, FY2026 Form 10-K: https://www.sec.gov/Archives/edgar/data/789019/000119312526323660/msft-20260630.htm\n2. Alphabet, FY2025 annual earnings release: https://s206.q4cdn.com/479360582/files/doc_financials/2025/q4/2025q4-alphabet-earnings-release.pdf\n3. The Wall Street Journal, Teams commitments, date not retrieved: https://www.wsj.com/tech/eu-accepts-microsoft-commitments-to-address-competition-concerns-over-teams-66ace2fb?eafs_enabled=false\n4. Alphabet, FY2025 Form 10-K: https://www.sec.gov/Archives/edgar/data/1652044/000165204426000018/goog-20251231.htm\n5. Microsoft, FY2026 Form 10-K: https://www.sec.gov/Archives/edgar/data/789019/000119312526323660/msft-20260630.htm\n6. The Motley Fool, Microsoft earnings-call transcript, October 29, 2026: https://www.fool.com/earnings/call-transcripts/2026/10/29/microsoft-msft-q1-2027-earnings-call-transcript\n7. Yahoo Finance, Alphabet earnings-call transcript, publication date not retrieved: https://finance.yahoo.com/quote/GOOG.SW/earnings/GOOG.SW-Q3-2026-earnings_call-712854.html\n8. Reuters, October 29, 2026: https://www.reuters.com/business/cash-is-king-investors-draw-new-battle-lines-ai-spending-boom-2026-10-29\n",
+ "notes": {
+  "microsoft-alphabet-annual-profitability.md": "## Research Question\nWhat were Microsoft\u2019s and Alphabet\u2019s revenue growth and profitability in their latest reported fiscal years, compared with the preceding years?\n\n## Key Findings\n- [Fact] Microsoft\u2019s FY2026 revenue rose 18% year over year to $331.839 billion; net income rose 31% to $133.749 billion. Its fiscal year ended June 30, 2026. [Microsoft 10-K](https://www.sec.gov/Archives/edgar/data/789019/000119312526323660/msft-20260630.htm)\n- [Fact] Alphabet\u2019s FY2025 revenue rose 15% year over year to $402.836 billion, and net income was $132.170 billion, versus $100.118 billion in FY2024. Its fiscal year ended December 31, 2025. [Alphabet earnings release](https://s206.q4cdn.com/479360582/files/doc_financials/2025/q4/2025q4-alphabet-earnings-release.pdf)\n- [Interpretation] Microsoft\u2019s calculated operating and net margins were approximately 46.8% and 40.3%, respectively, versus Alphabet\u2019s 32.0% and 32.8%. The companies\u2019 fiscal years end six months apart.\n\n## Financial Facts\nAll amounts in US dollars; margins are calculated as income divided by revenue, except Alphabet\u2019s operating margins, which are also reported rounded in its release.\n\n| Measure | Microsoft FY2026 / FY2025, years ended June 30 | Alphabet FY2025 / FY2024, years ended December 31 |\n|---|---|---|\n| Revenue | $331.839bn / $281.724bn; FY2026 growth 18% ([SEC 10-K](https://www.sec.gov/Archives/edgar/data/789019/000119312526323660/msft-20260630.htm)) | $402.836bn / $350.018bn; FY2025 growth 15% ([IR release](https://s206.q4cdn.com/479360582/files/doc_financials/2025/q4/2025q4-alphabet-earnings-release.pdf)) |\n| Operating income | $155.237bn / $128.528bn ([SEC 10-K](https://www.sec.gov/Archives/edgar/data/789019/000119312526323660/msft-20260630.htm)) | $129.039bn / $112.390bn ([IR release](https://s206.q4cdn.com/479360582/files/doc_financials/2025/q4/2025q4-alphabet-earnings-release.pdf)) |\n| Net income | $133.749bn / $101.832bn ([SEC 10-K](https://www.sec.gov/Archives/edgar/data/789019/000119312526323660/msft-20260630.htm)) | $132.170bn / $100.118bn ([IR release](https://s206.q4cdn.com/479360582/files/doc_financials/2025/q4/2025q4-alphabet-earnings-release.pdf)) |\n| Operating margin | 46.8% / 45.6%, calculated ([SEC 10-K](https://www.sec.gov/Archives/edgar/data/789019/000119312526323660/msft-20260630.htm)) | 32.0% / 32.1%, calculated ([IR release](https://s206.q4cdn.com/479360582/files/doc_financials/2025/q4/2025q4-alphabet-earnings-release.pdf)) |\n| Net margin | 40.3% / 36.1%, calculated ([SEC 10-K](https://www.sec.gov/Archives/edgar/data/789019/000119312526323660/msft-20260630.htm)) | 32.8% / 28.6%, calculated ([IR release](https://s206.q4cdn.com/479360582/files/doc_financials/2025/q4/2025q4-alphabet-earnings-release.pdf)) |\n\n## Sources\n- Microsoft, FY2026 Form 10-K: https://www.sec.gov/Archives/edgar/data/789019/000119312526323660/msft-20260630.htm\n- Microsoft, FY2026 fourth-quarter earnings release: https://www.microsoft.com/en-us/investor/earnings/fy-2026-q4/press-release-webcast\n- Alphabet, FY2025 fourth-quarter and fiscal-year earnings release: https://s206.q4cdn.com/479360582/files/doc_financials/2025/q4/2025q4-alphabet-earnings-release.pdf\n- Alphabet, 2025 annual report, SEC-hosted: https://www.sec.gov/Archives/edgar/data/1652044/000130817926000344/goog014907-ars.pdf\n\n## Caveats\nAs of November 7, 2026, the latest completed fiscal years differ: Microsoft\u2019s ended June 30, 2026, and Alphabet\u2019s ended December 31, 2025. Their results therefore cover different 12-month periods. Margins calculated from reported amounts are rounded to one decimal; Alphabet reports both operating margins rounded to whole percentages as 32%. Net income and net margin include non-operating items and taxes.",
+  "microsoft-alphabet-antitrust-risks.md": "## Research Question\nWhat regulatory and antitrust risks do Microsoft and Alphabet disclose in their latest annual risk factors, and what material recent enforcement actions affect each, as of November 7, 2026?\n\n## Key Findings\n- [Fact] **Microsoft \u2014 Teams:** The European Commission opened an antitrust investigation in 2023 into Microsoft\u2019s bundling of Teams with Office after a Slack complaint. The Wall Street Journal reports that the Commission subsequently accepted Microsoft\u2019s commitments, settling the probe. The bundling was the subject of an investigation, not an established infringement in the evidence retrieved. The decision date and detailed commitments were not retrieved. [WSJ](https://www.wsj.com/tech/eu-accepts-microsoft-commitments-to-address-competition-concerns-over-teams-66ace2fb?eafs_enabled=false)\n- [Interpretation] Commitments addressing competition concerns may constrain Microsoft\u2019s future conduct; their exact scope and any appeal cannot be assessed from the retrieved evidence.\n- [Fact] **Alphabet:** Its FY2025 10-K was located, but the retrieved excerpt did not provide its specific regulatory risk factors or a recent enforcement outcome. No allegation, ruling, remedy or appeal can be reliably summarized from that excerpt. [SEC](https://www.sec.gov/Archives/edgar/data/1652044/000165204426000018/goog-20251231.htm)\n\n## Financial Facts\n- Microsoft\u2019s latest located 10-K covers the fiscal year ended June 30, 2026 (company filing: https://www.sec.gov/Archives/edgar/data/789019/000119312526323660/msft-20260630.htm).\n- Alphabet\u2019s latest located 10-K covers the fiscal year ended December 31, 2025 (company filing: https://www.sec.gov/Archives/edgar/data/1652044/000165204426000018/goog-20251231.htm).\n- Financial performance figures are outside this legal-risk brief.\n\n## Sources\n- Microsoft, FY2026 Form 10-K, SEC: https://www.sec.gov/Archives/edgar/data/789019/000119312526323660/msft-20260630.htm\n- Alphabet, FY2025 Form 10-K, SEC: https://www.sec.gov/Archives/edgar/data/1652044/000165204426000018/goog-20251231.htm\n- The Wall Street Journal, Microsoft Teams antitrust settlement: https://www.wsj.com/tech/eu-accepts-microsoft-commitments-to-address-competition-concerns-over-teams-66ace2fb?eafs_enabled=false\n\n## Caveats\nThe search excerpts did not yield the specific Item 1A regulatory and antitrust disclosures for either company, so those disclosures remain unverified here. The Teams decision date, exact remedies and appeal status were not retrieved; its reported outcome relies on a secondary source. No Alphabet enforcement action was substantiated in the retrieved results. Fiscal year-ends differ, and the latest located annual filings cover different periods.",
+  "microsoft-alphabet-outlook.md": "## Research Question\nWhat do Microsoft\u2019s and Alphabet\u2019s latest available management guidance and recent attributable analyst commentary indicate about their business outlooks, as of November 7, 2026?\n\n## Key Findings\n- [Fact] Microsoft management guided fiscal Q2 2027 revenue to $96.0\u2013$97.1 billion, representing 18\u201319% growth. Its fiscal Q1 earnings release directs investors to the earnings call for guidance. The retrieved transcript was published October 29, 2026.\n- [Fact] Alphabet management maintained 2026 capital-expenditure guidance at $195\u2013$205 billion and expects spending to increase significantly in 2027. Reuters reported the 2027 expectation on October 29, 2026; the retrieved earnings-call transcript contains both statements.\n- [Interpretation] The guidance points to continued expansion alongside substantial infrastructure investment, but neither company\u2019s projection is an assurance of future results.\n- [Fact] Recent, dated, individually attributable analyst outlook commentary for either company was not verified in the retrieved eligible sources.\n\n## Financial Facts\n- Microsoft: Fiscal Q2 2027 revenue guidance $96.0\u2013$97.1 billion, 18\u201319% growth; management earnings-call transcript, published October 29, 2026: https://www.fool.com/earnings/call-transcripts/2026/10/29/microsoft-msft-q1-2027-earnings-call-transcript\n- Alphabet: Calendar 2026 capital-expenditure guidance $195\u2013$205 billion; Q3 earnings-call transcript hosted by Yahoo Finance: https://finance.yahoo.com/quote/GOOG.SW/earnings/GOOG.SW-Q3-2026-earnings_call-712854.html\n\n## Sources\n- Microsoft, FY2027 Q1 earnings release: https://www.microsoft.com/en-us/investor/earnings/fy-2027-q1/press-release-webcast\n- The Motley Fool, Microsoft FY2027 Q1 earnings-call transcript, October 29, 2026: https://www.fool.com/earnings/call-transcripts/2026/10/29/microsoft-msft-q1-2027-earnings-call-transcript\n- Alphabet, Q3 2026 earnings release filed with the SEC, October 28, 2026: https://www.sec.gov/Archives/edgar/data/1652044/000165204426000080/googexhibit991q32026.htm\n- Yahoo Finance, Alphabet Q3 2026 earnings-call transcript: https://finance.yahoo.com/quote/GOOG.SW/earnings/GOOG.SW-Q3-2026-earnings_call-712854.html\n- Reuters, October 29, 2026: https://www.reuters.com/business/cash-is-king-investors-draw-new-battle-lines-ai-spending-boom-2026-10-29\n\n## Caveats\nThe guidance figures are from secondary-hosted transcripts of management remarks, not independently verified against company-hosted call transcripts. The retrieved Alphabet transcript did not supply a publication date. No eligible source retrieved provided verified, dated analyst commentary for either company; that part of the question remains unanswered. Microsoft\u2019s fiscal year ends in June; Alphabet\u2019s ends in December, and the revenue and capex guidance measure different things."
+ }
+}

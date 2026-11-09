@@ -1,0 +1,31 @@
+{
+ "query": "Compare tesla vs apple on profitability, risk and revenue.",
+ "events": [
+  {
+   "k": "mw",
+   "name": "PatchToolCallsMiddleware.before_agent",
+   "who": "orchestrator",
+   "t": 0.0043582916259765625
+  },
+  {
+   "k": "step",
+   "id": "01a1b991-bbf3-70e4-983c-f60e62690b33",
+   "tool": "llm",
+   "detail": "deciding the next action",
+   "t": 0.02445530891418457
+  },
+  {
+   "k": "step_end",
+   "id": "01a1b991-bbf3-70e4-983c-f60e62690b33",
+   "result": "OpenAIAuthenticationError",
+   "error": true,
+   "t": 0.47853827476501465
+  }
+ ],
+ "duration": 0.8388948440551758,
+ "status": "error",
+ "usage": "LLM usage for this request:\nagent          calls unfinished  input tok output tok  cached in\norchestrator       1          1          0          0          0\nTOTAL              1          1          0          0          0",
+ "saved_at": "2026-11-08T10:41:39",
+ "error": "OpenAIAuthenticationError: Error code: 401 - Your API key has been invalidated.",
+ "notes": {}
+}
