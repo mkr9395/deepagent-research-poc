@@ -190,7 +190,7 @@ def build_researcher_agent(model=None, backend=None):
 
 
 if __name__ == "__main__":
-    import argparse
+    import argparse # accept arguments from the terminal
     import logging
 
     from fin_agent.tools.tavily_search import start_request
